@@ -1,0 +1,20 @@
+name = "ohcs-smartgate-api"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "development"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "smartgate-db"
+database_id = "local"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "local"
+
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "smartgate-storage"
