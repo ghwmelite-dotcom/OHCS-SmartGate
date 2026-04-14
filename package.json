@@ -1,0 +1,14 @@
+{
+  "name": "ohcs-smartgate",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:api": "npm run dev -w packages/api",
+    "dev:web": "npm run dev -w packages/web",
+    "build:web": "npm run build -w packages/web",
+    "type-check": "tsc --noEmit -p packages/api/tsconfig.json && tsc --noEmit -p packages/web/tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
