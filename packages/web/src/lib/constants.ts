@@ -12,4 +12,6 @@ export const ID_TYPES = [
   { value: 'other', label: 'Other' },
 ] as const;
 
-export const API_BASE = '/api';
+export const API_BASE = import.meta.env.PROD
+  ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev/api'
+  : '/api';

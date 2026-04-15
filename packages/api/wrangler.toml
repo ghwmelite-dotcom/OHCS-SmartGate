@@ -4,20 +4,41 @@ compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "smartgate-db"
-database_id = "local"
+database_id = "4346dcc7-0a1e-488a-a97f-5273072d4d14"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "local"
+id = "1357cc4c47b24cdf9001ad6ea06a705d"
 
 [[r2_buckets]]
 binding = "STORAGE"
 bucket_name = "smartgate-storage"
 
 [ai]
+binding = "AI"
+
+# Local development overrides
+[env.dev]
+[env.dev.vars]
+ENVIRONMENT = "development"
+
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "smartgate-db"
+database_id = "4346dcc7-0a1e-488a-a97f-5273072d4d14"
+
+[[env.dev.kv_namespaces]]
+binding = "KV"
+id = "1357cc4c47b24cdf9001ad6ea06a705d"
+
+[[env.dev.r2_buckets]]
+binding = "STORAGE"
+bucket_name = "smartgate-storage"
+
+[env.dev.ai]
 binding = "AI"
