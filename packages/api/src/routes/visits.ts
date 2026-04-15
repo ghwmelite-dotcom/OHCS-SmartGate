@@ -11,14 +11,18 @@ export const visitRoutes = new Hono<{ Bindings: Env; Variables: { session: Sessi
 
 const listSchema = z.object({
   date: z.string().optional(),
+  from: z.string().optional(),
+  to: z.string().optional(),
   status: z.enum(['checked_in', 'checked_out', 'cancelled']).optional(),
+  directorate_id: z.string().optional(),
   badge_code: z.string().optional(),
+  q: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
 });
 
 visitRoutes.get('/', zValidator('query', listSchema), async (c) => {
-  const { date, status, badge_code, limit, cursor } = c.req.valid('query');
+  const { date, from, to, status, directorate_id, badge_code, q, limit, cursor } = c.req.valid('query');
   let sql = `SELECT v.*, vis.first_name, vis.last_name, vis.organisation, vis.phone,
              o.name as host_name, d.abbreviation as directorate_abbr
              FROM visits v
@@ -36,9 +40,26 @@ visitRoutes.get('/', zValidator('query', listSchema), async (c) => {
     conditions.push('v.status = ?');
     params.push(status);
   }
+  if (from) {
+    conditions.push('DATE(v.check_in_at) >= ?');
+    params.push(from);
+  }
+  if (to) {
+    conditions.push('DATE(v.check_in_at) <= ?');
+    params.push(to);
+  }
+  if (directorate_id) {
+    conditions.push('v.directorate_id = ?');
+    params.push(directorate_id);
+  }
   if (badge_code) {
     conditions.push('v.badge_code = ?');
     params.push(badge_code);
+  }
+  if (q && q.length >= 2) {
+    const pattern = `%${q}%`;
+    conditions.push('(vis.first_name LIKE ? OR vis.last_name LIKE ? OR vis.organisation LIKE ? OR v.badge_code LIKE ?)');
+    params.push(pattern, pattern, pattern, pattern);
   }
   if (cursor) {
     conditions.push('v.check_in_at < ?');

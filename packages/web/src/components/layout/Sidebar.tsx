@@ -1,12 +1,15 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, ClipboardCheck, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, Users, ScrollText, BarChart3, FileText, Settings, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/check-in', icon: ClipboardCheck, label: 'Check-In' },
   { to: '/visitors', icon: Users, label: 'Visitors' },
+  { to: '/visit-log', icon: ScrollText, label: 'Visit Log' },
+  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/reports', icon: FileText, label: 'Reports' },
 ];
 
 const ADMIN_NAV = [

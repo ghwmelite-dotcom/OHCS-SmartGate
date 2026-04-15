@@ -11,6 +11,8 @@ import { telegramWebhook, telegramLinkRoute } from './routes/telegram';
 import { badgeRoutes, serveBadgePage } from './routes/badges';
 import { assistantRoutes } from './routes/assistant';
 import { userRoutes } from './routes/users';
+import { analyticsRoutes } from './routes/analytics';
+import { reportRoutes } from './routes/reports';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 
@@ -51,6 +53,8 @@ app.route('/api/directorates', directorateRoutes);
 app.route('/api/notifications', notificationRoutes);
 app.route('/api/assistant', assistantRoutes);
 app.route('/api/users', userRoutes);
+app.route('/api/analytics', analyticsRoutes);
+app.route('/api/reports', reportRoutes);
 app.post('/api/telegram/link', telegramLinkRoute);
 
 export default app;

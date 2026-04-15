@@ -9,6 +9,9 @@ import { VisitorDetailPage } from './pages/VisitorDetailPage';
 import { LinkTelegramPage } from './pages/LinkTelegramPage';
 import { BadgeCheckoutPage } from './pages/BadgeCheckoutPage';
 import { AdminPage } from './pages/AdminPage';
+import { VisitLogPage } from './pages/VisitLogPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { useAuthStore } from './stores/auth';
 
@@ -45,6 +48,9 @@ export function App() {
             <Route path="visitors/:id" element={<VisitorDetailPage />} />
             <Route path="link-telegram" element={<LinkTelegramPage />} />
             <Route path="checkout/:code" element={<BadgeCheckoutPage />} />
+            <Route path="visit-log" element={<VisitLogPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="reports" element={<ReportsPage />} />
             <Route path="admin" element={<AdminPage />} />
           </Route>
         </Routes>
