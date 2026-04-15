@@ -1,7 +1,8 @@
 import type { Env, SessionData } from '../types';
 
 const OTP_TTL = 600;
-const SESSION_TTL = 86400;
+const SESSION_TTL_DEFAULT = 86400;       // 24 hours
+const SESSION_TTL_REMEMBER = 2592000;    // 30 days
 
 export function generateOtp(): string {
   const array = new Uint32Array(1);
@@ -37,11 +38,32 @@ export async function verifyOtp(email: string, code: string, env: Env): Promise<
   return true;
 }
 
-export async function createSession(userId: string, email: string, role: string, name: string, env: Env): Promise<string> {
+export async function hashPin(pin: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(pin);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function verifyPin(pin: string, storedHash: string): Promise<boolean> {
+  const inputHash = await hashPin(pin);
+  return inputHash === storedHash;
+}
+
+export async function createSession(
+  userId: string,
+  email: string,
+  role: string,
+  name: string,
+  env: Env,
+  remember = false
+): Promise<{ sessionId: string; ttl: number }> {
   const sessionId = crypto.randomUUID();
+  const ttl = remember ? SESSION_TTL_REMEMBER : SESSION_TTL_DEFAULT;
   const session: SessionData = { userId, email, role, name };
-  await env.KV.put(`session:${sessionId}`, JSON.stringify(session), { expirationTtl: SESSION_TTL });
-  return sessionId;
+  await env.KV.put(`session:${sessionId}`, JSON.stringify(session), { expirationTtl: ttl });
+  return { sessionId, ttl };
 }
 
 export async function getSession(sessionId: string, env: Env): Promise<SessionData | null> {

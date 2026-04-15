@@ -1,33 +1,145 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #1B3A5C;
-  --color-primary-light: #2A5A8C;
-  --color-primary-dark: #0F2740;
+  /* Ghana Government Prestige Palette */
+  --color-primary: #1A4D2E;
+  --color-primary-light: #256B3E;
+  --color-primary-dark: #0F2E1B;
+  --color-primary-deep: #071A0F;
+
   --color-accent: #D4A017;
-  --color-accent-light: #E8BD4A;
-  --color-secondary: #2A9D8F;
-  --color-background: #F8F9FA;
+  --color-accent-light: #E8C44A;
+  --color-accent-warm: #C4920F;
+  --color-accent-glow: #F5D76E;
+
+  --color-secondary: #8B1A1A;
+  --color-secondary-light: #A62828;
+
+  --color-background: #FEFCF6;
+  --color-background-warm: #FFF8E7;
   --color-surface: #FFFFFF;
-  --color-border: #E5E7EB;
-  --color-border-strong: #D1D5DB;
-  --color-foreground: #111827;
-  --color-muted: #6B7280;
-  --color-muted-foreground: #9CA3AF;
+  --color-surface-warm: #FFFDF5;
+  --color-surface-elevated: #FFFFFF;
 
-  --color-success: #22C55E;
-  --color-success-light: #DCFCE7;
-  --color-warning: #F59E0B;
-  --color-warning-light: #FEF3C7;
-  --color-info: #3B82F6;
-  --color-info-light: #DBEAFE;
-  --color-danger: #EF4444;
-  --color-danger-light: #FEE2E2;
+  --color-border: #E8DFC9;
+  --color-border-strong: #D4C9A8;
+  --color-border-subtle: #F0EBD8;
 
-  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --color-foreground: #1C1810;
+  --color-muted: #6B6352;
+  --color-muted-foreground: #9C9280;
+
+  --color-success: #1A7A3A;
+  --color-success-light: #E6F5EC;
+  --color-warning: #C4920F;
+  --color-warning-light: #FFF3D0;
+  --color-info: #1A4D8B;
+  --color-info-light: #E0ECF8;
+  --color-danger: #9A1B1B;
+  --color-danger-light: #FDEAEA;
+
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
 
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
 }
+
+/* Kente-inspired subtle background pattern */
+.bg-kente {
+  background-image:
+    linear-gradient(45deg, rgba(212, 160, 23, 0.03) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(212, 160, 23, 0.03) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(212, 160, 23, 0.03) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(212, 160, 23, 0.03) 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+
+/* Gold shimmer effect for accents */
+.gold-shimmer {
+  background: linear-gradient(135deg, #D4A017 0%, #F5D76E 50%, #D4A017 100%);
+  background-size: 200% 200%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Warm paper texture overlay */
+.paper-texture {
+  position: relative;
+}
+.paper-texture::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23f5f0e0' fill-opacity='0.4'/%3E%3Crect x='0' y='0' width='1' height='1' fill='%23e8dfc9' fill-opacity='0.1'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Smooth entrance animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out both;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s ease-out both;
+}
+
+/* Staggered delays for lists */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+
+/* Card hover lift */
+.card-lift {
+  transition: transform 0.25s ease-out, box-shadow 0.25s ease-out;
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(26, 77, 46, 0.08), 0 2px 8px rgba(212, 160, 23, 0.06);
+}
+
+/* Gold left border accent for cards */
+.gold-border-left {
+  border-left: 3px solid var(--color-accent);
+}
+
+/* Ghana flag gradient bar */
+.ghana-flag-bar {
+  height: 3px;
+  background: linear-gradient(90deg, #CE1126 33%, #FCD116 33% 66%, #006B3F 66%);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }

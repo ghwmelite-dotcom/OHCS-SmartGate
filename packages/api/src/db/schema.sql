@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
     id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     name        TEXT NOT NULL,
     email       TEXT NOT NULL UNIQUE,
+    staff_id    TEXT UNIQUE,
+    pin_hash    TEXT,
     role        TEXT NOT NULL DEFAULT 'receptionist' CHECK(role IN ('receptionist','admin','director','officer')),
     is_active   INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
     last_login_at TEXT,

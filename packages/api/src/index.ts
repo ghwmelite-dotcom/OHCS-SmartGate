@@ -16,12 +16,16 @@ import { errorHandler } from './middleware/error-handler';
 const app = new Hono<{ Bindings: Env; Variables: { session: import('./types').SessionData } }>();
 
 app.use('*', cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:8788',
-    'https://ohcs-smartgate.pages.dev',
-    /\.ohcs-smartgate\.pages\.dev$/,
-  ],
+  origin: (origin) => {
+    const allowed = [
+      'http://localhost:5173',
+      'http://localhost:8788',
+      'https://ohcs-smartgate.pages.dev',
+    ];
+    if (allowed.includes(origin)) return origin;
+    if (origin.endsWith('.ohcs-smartgate.pages.dev')) return origin;
+    return allowed[0]!;
+  },
   credentials: true,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],

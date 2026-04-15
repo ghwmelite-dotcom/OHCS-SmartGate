@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api, type Visit } from '@/lib/api';
 import { cn, formatTime, timeAgo, getInitials } from '@/lib/utils';
-import { VISIT_STATUS } from '@/lib/constants';
 import {
   Users,
   LogIn,
@@ -12,6 +11,7 @@ import {
   RefreshCw,
   ArrowRight,
   Search,
+  Flame,
 } from 'lucide-react';
 
 export function DashboardPage() {
@@ -61,72 +61,90 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Page title */}
+      <div className="animate-fade-in-up">
+        <h1 className="text-2xl font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+          Dashboard
+        </h1>
+        <p className="text-sm text-muted mt-0.5">Real-time visitor overview</p>
+      </div>
+
       {/* Stats row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={<Users className="h-5 w-5" />}
           label="In Building"
           value={active.length}
-          accent="text-secondary"
-          bg="bg-secondary/10"
+          color="primary"
+          delay="stagger-1"
         />
         <StatCard
           icon={<LogIn className="h-5 w-5" />}
           label="Checked In Today"
           value={today.length}
-          accent="text-info"
-          bg="bg-info/10"
+          color="accent"
+          delay="stagger-2"
         />
         <StatCard
           icon={<LogOutIcon className="h-5 w-5" />}
           label="Checked Out Today"
           value={checkedOutToday}
-          accent="text-success"
-          bg="bg-success/10"
+          color="success"
+          delay="stagger-3"
         />
         <StatCard
           icon={<Clock className="h-5 w-5" />}
           label="Avg Duration"
           value={avgDuration > 0 ? `${avgDuration}m` : '--'}
-          accent="text-accent"
-          bg="bg-accent/10"
+          color="muted"
+          delay="stagger-4"
         />
       </div>
 
       {/* Quick actions */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 animate-fade-in-up stagger-3">
         <button
           onClick={() => navigate('/check-in')}
-          className="inline-flex items-center gap-2 h-10 px-4 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-light transition-colors"
+          className="inline-flex items-center gap-2 h-11 px-5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-light transition-all shadow-lg shadow-primary/15 active:scale-[0.98]"
         >
           <LogIn className="h-4 w-4" />
           New Check-In
         </button>
         <button
           onClick={() => navigate('/visitors')}
-          className="inline-flex items-center gap-2 h-10 px-4 bg-surface text-foreground text-sm font-medium rounded-lg border border-border hover:bg-background transition-colors"
+          className="inline-flex items-center gap-2 h-11 px-5 bg-surface text-foreground text-sm font-medium rounded-xl border border-border hover:border-accent/40 hover:shadow-sm transition-all"
         >
-          <Search className="h-4 w-4" />
+          <Search className="h-4 w-4 text-muted" />
           Find Visitor
         </button>
       </div>
 
       {/* Active visits - live feed */}
-      <div className="bg-surface rounded-xl border border-border shadow-sm">
+      <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden animate-fade-in-up stagger-4">
+        {/* Gold top accent */}
+        <div className="h-[2px]" style={{
+          background: 'linear-gradient(90deg, #D4A017, #F5D76E 50%, #D4A017)',
+        }} />
+
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">
-              Active Visits
-            </h2>
-            <p className="text-xs text-muted mt-0.5">
-              Currently in building — auto-refreshes every 15s
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Flame className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                Active Visits
+              </h2>
+              <p className="text-[11px] text-muted mt-0.5">
+                Currently in building &middot; auto-refreshes
+              </p>
+            </div>
           </div>
           <button
             onClick={() =>
               queryClient.invalidateQueries({ queryKey: ['visits', 'active'] })
             }
-            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted hover:text-foreground hover:bg-background transition-colors"
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted hover:text-primary hover:bg-primary/5 transition-all"
             title="Refresh"
           >
             <RefreshCw className="h-4 w-4" />
@@ -134,43 +152,49 @@ export function DashboardPage() {
         </div>
 
         {isLoading ? (
-          <div className="p-8 text-center text-muted text-sm">
+          <div className="p-10 text-center text-muted text-sm">
+            <div className="h-5 w-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
             Loading active visits...
           </div>
         ) : active.length === 0 ? (
-          <div className="p-8 text-center">
-            <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted">No visitors currently in building</p>
+          <div className="p-10 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-background flex items-center justify-center mx-auto mb-3">
+              <Users className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted font-medium">No visitors currently in building</p>
             <button
               onClick={() => navigate('/check-in')}
-              className="inline-flex items-center gap-1 text-sm text-primary font-medium mt-2 hover:underline"
+              className="inline-flex items-center gap-1 text-sm text-primary font-semibold mt-2.5 hover:underline"
             >
               Check in a visitor <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {active.map((visit) => (
+            {active.map((visit, i) => (
               <div
                 key={visit.id}
-                className="flex items-center gap-4 px-5 py-3.5 hover:bg-background/50 transition-colors"
+                className={cn(
+                  'flex items-center gap-4 px-5 py-3.5 hover:bg-background-warm/50 transition-all animate-fade-in-up',
+                  `stagger-${Math.min(i + 1, 5)}`
+                )}
               >
                 {/* Avatar */}
-                <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0">
                   {getInitials(visit.first_name ?? '', visit.last_name ?? '')}
                 </div>
 
                 {/* Visitor info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
+                  <p className="text-sm font-semibold text-foreground truncate">
                     {visit.first_name} {visit.last_name}
                   </p>
-                  <div className="flex items-center gap-2 text-xs text-muted mt-0.5">
+                  <div className="flex items-center gap-2 text-[11px] text-muted mt-0.5">
                     {visit.organisation && (
                       <span className="truncate">{visit.organisation}</span>
                     )}
                     {visit.organisation && visit.host_name && (
-                      <span className="text-border-strong">·</span>
+                      <span className="text-border-strong">&middot;</span>
                     )}
                     {visit.host_name && (
                       <span className="truncate">Host: {visit.host_name}</span>
@@ -180,24 +204,24 @@ export function DashboardPage() {
 
                 {/* Directorate badge */}
                 {visit.directorate_abbr && (
-                  <span className="hidden sm:inline-flex items-center h-6 px-2 text-xs font-medium bg-primary/10 text-primary rounded-md">
+                  <span className="hidden sm:inline-flex items-center h-6 px-2.5 text-[10px] font-bold bg-primary/8 text-primary rounded-lg tracking-wide">
                     {visit.directorate_abbr}
                   </span>
                 )}
 
                 {/* Time */}
                 <div className="text-right shrink-0 hidden sm:block">
-                  <p className="text-xs text-muted">
+                  <p className="text-[11px] font-medium text-foreground">
                     {formatTime(visit.check_in_at)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[10px] text-muted-foreground">
                     {timeAgo(visit.check_in_at)}
                   </p>
                 </div>
 
                 {/* Badge code */}
                 {visit.badge_code && (
-                  <span className="hidden md:inline-flex items-center h-6 px-2 text-xs font-mono bg-accent/10 text-accent rounded-md">
+                  <span className="hidden md:inline-flex items-center h-6 px-2 text-[10px] font-mono font-bold bg-accent/10 text-accent-warm rounded-lg">
                     {visit.badge_code}
                   </span>
                 )}
@@ -207,13 +231,13 @@ export function DashboardPage() {
                   onClick={() => handleCheckOut(visit.id)}
                   disabled={checkingOut === visit.id}
                   className={cn(
-                    'inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg transition-colors shrink-0',
-                    'bg-danger/10 text-danger hover:bg-danger hover:text-white',
+                    'inline-flex items-center gap-1.5 h-8 px-3.5 text-[11px] font-semibold rounded-lg transition-all shrink-0',
+                    'bg-secondary/10 text-secondary hover:bg-secondary hover:text-white',
                     checkingOut === visit.id && 'opacity-50 cursor-wait'
                   )}
                 >
                   <LogOutIcon className="h-3.5 w-3.5" />
-                  {checkingOut === visit.id ? 'Checking out...' : 'Check Out'}
+                  {checkingOut === visit.id ? 'Leaving...' : 'Check Out'}
                 </button>
               </div>
             ))}
@@ -228,31 +252,37 @@ function StatCard({
   icon,
   label,
   value,
-  accent,
-  bg,
+  color,
+  delay,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string | number;
-  accent: string;
-  bg: string;
+  color: 'primary' | 'accent' | 'success' | 'muted';
+  delay: string;
 }) {
+  const colorMap = {
+    primary: { bg: 'bg-primary/8', text: 'text-primary', border: 'border-primary/10' },
+    accent: { bg: 'bg-accent/10', text: 'text-accent-warm', border: 'border-accent/15' },
+    success: { bg: 'bg-success/8', text: 'text-success', border: 'border-success/10' },
+    muted: { bg: 'bg-foreground/5', text: 'text-foreground', border: 'border-border' },
+  };
+  const c = colorMap[color];
+
   return (
-    <div className="bg-surface rounded-xl border border-border shadow-sm p-4 flex items-center gap-4">
-      <div
-        className={cn(
-          'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
-          bg,
-          accent
-        )}
-      >
+    <div className={cn(
+      'bg-surface rounded-2xl border shadow-sm p-5 flex items-center gap-4 card-lift animate-fade-in-up',
+      c.border,
+      delay
+    )}>
+      <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center shrink-0', c.bg, c.text)}>
         {icon}
       </div>
       <div>
-        <p className="text-2xl font-bold text-foreground leading-tight">
+        <p className="text-2xl font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
           {value}
         </p>
-        <p className="text-xs text-muted">{label}</p>
+        <p className="text-[11px] text-muted font-medium mt-0.5">{label}</p>
       </div>
     </div>
   );

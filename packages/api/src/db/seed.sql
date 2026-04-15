@@ -26,8 +26,9 @@ INSERT OR IGNORE INTO visit_categories (id, name, slug, directorate_hint_id) VAL
 ('cat_other', 'Other', 'other', NULL);
 
 -- Seed: Default admin user (receptionist)
-INSERT OR IGNORE INTO users (id, name, email, role) VALUES
-('user_admin', 'OHCS Reception', 'reception@ohcs.gov.gh', 'admin');
+-- Default PIN: 1234 (SHA-256: 03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4)
+INSERT OR IGNORE INTO users (id, name, email, staff_id, pin_hash, role) VALUES
+('user_admin', 'OHCS Reception', 'reception@ohcs.gov.gh', 'OHCS-001', '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', 'admin');
 
 -- Seed: Sample officers
 INSERT OR IGNORE INTO officers (id, name, title, directorate_id, email, office_number) VALUES

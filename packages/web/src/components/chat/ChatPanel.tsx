@@ -26,25 +26,36 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="fixed bottom-24 right-6 z-50 w-[360px] h-[500px] bg-surface rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
+    <div className="fixed bottom-24 right-6 z-50 w-[370px] h-[520px] bg-surface rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-fade-in-up">
       {/* Header */}
-      <div className="bg-primary px-4 py-3 flex items-center gap-3 shrink-0">
-        <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
-          <Bot className="h-4 w-4 text-primary" />
+      <div className="px-4 py-3.5 flex items-center gap-3 shrink-0" style={{
+        background: 'linear-gradient(135deg, #1A4D2E, #0F2E1B)',
+      }}>
+        <div className="w-9 h-9 rounded-xl overflow-hidden ring-1 ring-accent/30">
+          <img src="/ohcs-logo.jpg" alt="" className="w-full h-full object-cover" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">SmartGate Assistant</h3>
-          <p className="text-[10px] text-white/60">Powered by AI</p>
+          <h3 className="text-sm font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
+            SmartGate Assistant
+          </h3>
+          <p className="text-[10px] text-accent/60 tracking-wide">Powered by AI</p>
         </div>
       </div>
+      <div className="h-[2px]" style={{
+        background: 'linear-gradient(90deg, #D4A017, #F5D76E, #D4A017)',
+      }} />
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-background-warm">
         {messages.length === 0 && (
           <div className="text-center py-8">
-            <Bot className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted">Hi! I can help with:</p>
-            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+            <div className="w-12 h-12 rounded-xl bg-primary/8 flex items-center justify-center mx-auto mb-3">
+              <Bot className="h-5 w-5 text-primary" />
+            </div>
+            <p className="text-sm text-foreground font-medium" style={{ fontFamily: 'var(--font-display)' }}>
+              How can I help?
+            </p>
+            <div className="mt-3 space-y-1.5 text-[11px] text-muted">
               <p>"Which directorate handles pensions?"</p>
               <p>"Is Mr. Mensah available?"</p>
               <p>"How many visitors today?"</p>
@@ -61,22 +72,22 @@ export function ChatPanel() {
             )}
           >
             {msg.role === 'assistant' && (
-              <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center shrink-0 mt-0.5">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
                 <Bot className="h-3.5 w-3.5" />
               </div>
             )}
             <div
               className={cn(
-                'max-w-[80%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap',
+                'max-w-[80%] rounded-xl px-3.5 py-2.5 text-[13px] whitespace-pre-wrap leading-relaxed',
                 msg.role === 'user'
                   ? 'bg-primary text-white rounded-br-sm'
-                  : 'bg-background text-foreground border border-border rounded-bl-sm'
+                  : 'bg-surface text-foreground border border-border rounded-bl-sm shadow-sm'
               )}
             >
               {msg.content}
             </div>
             {msg.role === 'user' && (
-              <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center shrink-0 mt-0.5">
+              <div className="w-6 h-6 rounded-lg bg-accent/10 text-accent-warm flex items-center justify-center shrink-0 mt-0.5">
                 <User className="h-3.5 w-3.5" />
               </div>
             )}
@@ -85,14 +96,14 @@ export function ChatPanel() {
 
         {isLoading && (
           <div className="flex gap-2 justify-start">
-            <div className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center shrink-0 mt-0.5">
+            <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
               <Bot className="h-3.5 w-3.5" />
             </div>
-            <div className="bg-background border border-border rounded-xl rounded-bl-sm px-3 py-2">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="bg-surface border border-border rounded-xl rounded-bl-sm px-4 py-3 shadow-sm">
+              <div className="flex gap-1.5">
+                <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -102,20 +113,20 @@ export function ChatPanel() {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="border-t border-border px-3 py-2.5 flex gap-2 shrink-0">
+      <form onSubmit={handleSubmit} className="border-t border-border bg-surface px-3 py-2.5 flex gap-2 shrink-0">
         <input
           ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask a question..."
-          className="flex-1 h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          className="flex-1 h-10 px-3.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary transition-all"
           disabled={isLoading}
         />
         <button
           type="submit"
           disabled={!input.trim() || isLoading}
-          className="h-9 w-9 bg-primary text-white rounded-lg flex items-center justify-center hover:bg-primary-light transition-colors disabled:opacity-50 shrink-0"
+          className="h-10 w-10 bg-primary text-white rounded-xl flex items-center justify-center hover:bg-primary-light transition-all disabled:opacity-40 shrink-0 shadow-sm"
         >
           <Send className="h-4 w-4" />
         </button>
