@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, ClipboardCheck, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, Users, Settings, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 
 const NAV_ITEMS = [
@@ -9,8 +9,14 @@ const NAV_ITEMS = [
   { to: '/visitors', icon: Users, label: 'Visitors' },
 ];
 
+const ADMIN_NAV = [
+  { to: '/admin', icon: Settings, label: 'Admin' },
+];
+
 export function Sidebar() {
   const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
+  const isSuperadmin = user?.role === 'superadmin';
 
   return (
     <aside className="w-64 h-screen flex flex-col shrink-0 relative overflow-hidden"
@@ -83,6 +89,40 @@ export function Sidebar() {
             )}
           </NavLink>
         ))}
+
+        {/* Admin section — superadmin only */}
+        {isSuperadmin && (
+          <>
+            <div className="h-[1px] w-full bg-white/8 my-2" />
+            {ADMIN_NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14px] font-medium transition-all duration-200 group relative',
+                    isActive
+                      ? 'bg-white/12 text-white shadow-inner shadow-white/5'
+                      : 'text-white/55 hover:bg-white/8 hover:text-white/90'
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent" />
+                    )}
+                    <item.icon className={cn(
+                      'h-[18px] w-[18px] shrink-0 transition-colors',
+                      isActive ? 'text-accent' : 'text-white/40 group-hover:text-white/70'
+                    )} />
+                    {item.label}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
 
       {/* Motto */}
