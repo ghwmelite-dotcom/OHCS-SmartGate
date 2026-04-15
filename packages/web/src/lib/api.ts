@@ -1,0 +1,110 @@
+import { API_BASE } from './constants';
+
+interface ApiResponse<T> {
+  data: T | null;
+  error: { code: string; message: string; details?: unknown } | null;
+  meta?: { cursor?: string; hasMore?: boolean; total?: number };
+}
+
+class ApiError extends Error {
+  constructor(public code: string, message: string, public status: number) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+  const json = await res.json() as ApiResponse<T>;
+
+  if (!res.ok || json.error) {
+    throw new ApiError(
+      json.error?.code ?? 'UNKNOWN',
+      json.error?.message ?? 'An error occurred',
+      res.status
+    );
+  }
+
+  return json;
+}
+
+export const api = {
+  get: <T>(path: string) => request<T>(path),
+  post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+  put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+};
+
+/* ---- Shared API types ---- */
+
+export interface Visitor {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  email: string | null;
+  organisation: string | null;
+  id_type: string | null;
+  id_number: string | null;
+  total_visits: number;
+  last_visit_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Visit {
+  id: string;
+  visitor_id: string;
+  host_officer_id: string | null;
+  directorate_id: string | null;
+  purpose_raw: string | null;
+  purpose_category: string | null;
+  check_in_at: string;
+  check_out_at: string | null;
+  duration_minutes: number | null;
+  badge_code: string | null;
+  status: 'checked_in' | 'checked_out' | 'cancelled';
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  /* joined fields */
+  first_name?: string;
+  last_name?: string;
+  organisation?: string;
+  phone?: string;
+  host_name?: string;
+  directorate_abbr?: string;
+}
+
+export interface Officer {
+  id: string;
+  name: string;
+  title: string | null;
+  directorate_id: string;
+  email: string | null;
+  phone: string | null;
+  office_number: string | null;
+  is_available: number;
+  directorate_name?: string;
+  directorate_abbr?: string;
+}
+
+export interface Directorate {
+  id: string;
+  name: string;
+  abbreviation: string;
+  floor: string | null;
+  wing: string | null;
+  is_active: number;
+}
+
+export interface VisitorDetail extends Visitor {
+  visits: Visit[];
+}
