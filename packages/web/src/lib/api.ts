@@ -108,3 +108,14 @@ export interface Directorate {
 export interface VisitorDetail extends Visitor {
   visits: Visit[];
 }
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  visit_id: string | null;
+  is_read: number;
+  created_at: string;
+}

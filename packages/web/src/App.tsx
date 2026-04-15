@@ -6,6 +6,8 @@ import { DashboardPage } from './pages/DashboardPage';
 import { CheckInPage } from './pages/CheckInPage';
 import { VisitorsPage } from './pages/VisitorsPage';
 import { VisitorDetailPage } from './pages/VisitorDetailPage';
+import { LinkTelegramPage } from './pages/LinkTelegramPage';
+import { BadgeCheckoutPage } from './pages/BadgeCheckoutPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { useAuthStore } from './stores/auth';
 
@@ -40,6 +42,8 @@ export function App() {
             <Route path="check-in" element={<CheckInPage />} />
             <Route path="visitors" element={<VisitorsPage />} />
             <Route path="visitors/:id" element={<VisitorDetailPage />} />
+            <Route path="link-telegram" element={<LinkTelegramPage />} />
+            <Route path="checkout/:code" element={<BadgeCheckoutPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import QRCode from 'qrcode';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -434,10 +435,16 @@ export function CheckInPage() {
           </div>
 
           {createdVisit.badge_code && (
-            <div className="inline-flex items-center gap-2 h-10 px-4 bg-accent/10 rounded-lg">
-              <span className="text-xs text-muted">Badge:</span>
-              <span className="text-sm font-mono font-bold text-accent">{createdVisit.badge_code}</span>
-            </div>
+            <>
+              <div className="inline-flex items-center gap-2 h-10 px-4 bg-accent/10 rounded-lg">
+                <span className="text-xs text-muted">Badge:</span>
+                <span className="text-sm font-mono font-bold text-accent">{createdVisit.badge_code}</span>
+              </div>
+              <div className="pt-2">
+                <p className="text-xs text-muted mb-3">Have the visitor scan this code for their digital badge</p>
+                <BadgeQRCode badgeCode={createdVisit.badge_code} />
+              </div>
+            </>
           )}
 
           <div className="flex items-center justify-center gap-3 pt-2">
@@ -486,6 +493,23 @@ function FieldWrapper({
       {error && <p className="text-danger text-xs mt-1">{error}</p>}
     </div>
   );
+}
+
+function BadgeQRCode({ badgeCode }: { badgeCode: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      const badgeUrl = `${window.location.origin}/badge/${badgeCode}`;
+      QRCode.toCanvas(canvasRef.current, badgeUrl, {
+        width: 200,
+        margin: 2,
+        color: { dark: '#1B3A5C', light: '#FFFFFF' },
+      });
+    }
+  }, [badgeCode]);
+
+  return <canvas ref={canvasRef} className="mx-auto rounded-lg" />;
 }
 
 function StepIndicator({ current }: { current: Step }) {
