@@ -6,7 +6,7 @@ const SESSION_TTL = 86400;
 export function generateOtp(): string {
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
-  return String(array[0] % 1000000).padStart(6, '0');
+  return String(array[0]! % 1000000).padStart(6, '0');
 }
 
 export async function createOtp(email: string, env: Env): Promise<string> {

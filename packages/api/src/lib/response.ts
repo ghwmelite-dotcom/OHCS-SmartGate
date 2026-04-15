@@ -7,7 +7,7 @@ interface ApiResponse<T> {
 }
 
 export function success<T>(c: Context, data: T, meta?: ApiResponse<T>['meta'], status = 200) {
-  return c.json<ApiResponse<T>>({ data, error: null, meta }, status);
+  return c.json<ApiResponse<T>>({ data, error: null, meta }, status as 200);
 }
 
 export function created<T>(c: Context, data: T) {
@@ -15,7 +15,7 @@ export function created<T>(c: Context, data: T) {
 }
 
 export function error(c: Context, code: string, message: string, status = 400, details?: unknown) {
-  return c.json<ApiResponse<null>>({ data: null, error: { code, message, details } }, status);
+  return c.json<ApiResponse<null>>({ data: null, error: { code, message, details } }, status as 200);
 }
 
 export function notFound(c: Context, resource = 'Resource') {

@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import type { Env, SessionData } from '../types';
 import { CheckInSchema } from '../lib/validation';
 import { success, created, notFound, error } from '../lib/response';
+import { classifyAndUpdate } from '../services/classifier';
+import { notifyHostOfficer } from '../services/notifier';
 import { z } from 'zod';
 
 export const visitRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
@@ -10,12 +12,13 @@ export const visitRoutes = new Hono<{ Bindings: Env; Variables: { session: Sessi
 const listSchema = z.object({
   date: z.string().optional(),
   status: z.enum(['checked_in', 'checked_out', 'cancelled']).optional(),
+  badge_code: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
 });
 
 visitRoutes.get('/', zValidator('query', listSchema), async (c) => {
-  const { date, status, limit, cursor } = c.req.valid('query');
+  const { date, status, badge_code, limit, cursor } = c.req.valid('query');
   let sql = `SELECT v.*, vis.first_name, vis.last_name, vis.organisation, vis.phone,
              o.name as host_name, d.abbreviation as directorate_abbr
              FROM visits v
@@ -32,6 +35,10 @@ visitRoutes.get('/', zValidator('query', listSchema), async (c) => {
   if (status) {
     conditions.push('v.status = ?');
     params.push(status);
+  }
+  if (badge_code) {
+    conditions.push('v.badge_code = ?');
+    params.push(badge_code);
   }
   if (cursor) {
     conditions.push('v.check_in_at < ?');
@@ -76,7 +83,9 @@ visitRoutes.post('/check-in', zValidator('json', CheckInSchema), async (c) => {
   if (!visitor) return notFound(c, 'Visitor');
 
   const visitId = crypto.randomUUID().replace(/-/g, '');
-  const badgeCode = `SG-${Date.now().toString(36).toUpperCase()}`;
+  const randomSuffix = Array.from(crypto.getRandomValues(new Uint8Array(2)))
+    .map(b => b.toString(36)).join('').slice(0, 4).toUpperCase();
+  const badgeCode = `SG-${Date.now().toString(36).toUpperCase()}${randomSuffix}`;
 
   await c.env.DB.batch([
     c.env.DB.prepare(
@@ -100,6 +109,31 @@ visitRoutes.post('/check-in', zValidator('json', CheckInSchema), async (c) => {
      LEFT JOIN directorates d ON v.directorate_id = d.id
      WHERE v.id = ?`
   ).bind(visitId).first();
+
+  // Fire classification in background (non-blocking)
+  if (body.purpose_raw) {
+    c.executionCtx.waitUntil(
+      classifyAndUpdate(visitId, body.purpose_raw, body.directorate_id || null, c.env)
+    );
+  }
+
+  // Notify host officer in background (Telegram + in-app)
+  if (body.host_officer_id && visit) {
+    const v = visit as Record<string, unknown>;
+    c.executionCtx.waitUntil(
+      notifyHostOfficer({
+        visit_id: visitId,
+        host_officer_id: body.host_officer_id,
+        first_name: String(v.first_name ?? ''),
+        last_name: String(v.last_name ?? ''),
+        organisation: (v.organisation as string | null) ?? null,
+        purpose_raw: body.purpose_raw || null,
+        badge_code: badgeCode,
+        check_in_at: String(v.check_in_at ?? ''),
+        directorate_abbr: (v.directorate_abbr as string | null) ?? null,
+      }, c.env)
+    );
+  }
 
   return created(c, visit);
 });
