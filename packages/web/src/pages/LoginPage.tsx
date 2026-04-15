@@ -105,12 +105,12 @@ export function LoginPage() {
           </p>
 
           {/* Motto */}
-          <div className="absolute bottom-10 flex items-center gap-4 text-white/20">
-            <span className="text-[10px] tracking-[0.2em] uppercase font-medium">Loyalty</span>
-            <div className="w-1 h-1 rounded-full bg-accent/40" />
-            <span className="text-[10px] tracking-[0.2em] uppercase font-medium">Excellence</span>
-            <div className="w-1 h-1 rounded-full bg-accent/40" />
-            <span className="text-[10px] tracking-[0.2em] uppercase font-medium">Service</span>
+          <div className="absolute bottom-10 flex items-center gap-4" style={{ color: '#D4A017' }}>
+            <span className="text-[10px] tracking-[0.2em] uppercase font-semibold">Loyalty</span>
+            <div className="w-1 h-1 rounded-full bg-accent" />
+            <span className="text-[10px] tracking-[0.2em] uppercase font-semibold">Excellence</span>
+            <div className="w-1 h-1 rounded-full bg-accent" />
+            <span className="text-[10px] tracking-[0.2em] uppercase font-semibold">Service</span>
           </div>
         </div>
 

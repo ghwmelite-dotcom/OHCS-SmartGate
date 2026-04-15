@@ -87,7 +87,7 @@ export function Sidebar() {
 
       {/* Motto */}
       <div className="relative px-5 py-3">
-        <p className="text-[9px] tracking-[0.2em] uppercase text-white/20 text-center font-medium">
+        <p className="text-[9px] tracking-[0.2em] uppercase text-center font-semibold" style={{ color: '#D4A017' }}>
           Loyalty &middot; Excellence &middot; Service
         </p>
       </div>

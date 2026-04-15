@@ -10,6 +10,7 @@ import { notificationRoutes } from './routes/notifications';
 import { telegramWebhook, telegramLinkRoute } from './routes/telegram';
 import { badgeRoutes, serveBadgePage } from './routes/badges';
 import { assistantRoutes } from './routes/assistant';
+import { userRoutes } from './routes/users';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 
@@ -49,6 +50,7 @@ app.route('/api/officers', officerRoutes);
 app.route('/api/directorates', directorateRoutes);
 app.route('/api/notifications', notificationRoutes);
 app.route('/api/assistant', assistantRoutes);
+app.route('/api/users', userRoutes);
 app.post('/api/telegram/link', telegramLinkRoute);
 
 export default app;

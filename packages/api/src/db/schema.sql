@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     email       TEXT NOT NULL UNIQUE,
     staff_id    TEXT UNIQUE,
     pin_hash    TEXT,
-    role        TEXT NOT NULL DEFAULT 'receptionist' CHECK(role IN ('receptionist','admin','director','officer')),
+    role        TEXT NOT NULL DEFAULT 'receptionist' CHECK(role IN ('superadmin','admin','receptionist','director','officer')),
     is_active   INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
     last_login_at TEXT,
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
