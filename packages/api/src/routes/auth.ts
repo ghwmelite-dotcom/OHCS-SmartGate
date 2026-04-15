@@ -1,0 +1,79 @@
+import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
+import type { Env, SessionData } from '../types';
+import { LoginSchema, VerifyOtpSchema } from '../lib/validation';
+import { createOtp, verifyOtp, createSession, deleteSession, getSession } from '../services/auth';
+import { success, error } from '../lib/response';
+
+export const authRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
+
+authRoutes.post('/login', zValidator('json', LoginSchema), async (c) => {
+  const { email } = c.req.valid('json');
+
+  const user = await c.env.DB.prepare('SELECT id, name, email, role, is_active FROM users WHERE email = ?')
+    .bind(email)
+    .first();
+
+  if (!user || !user.is_active) {
+    return error(c, 'USER_NOT_FOUND', 'No active account found with this email', 404);
+  }
+
+  await createOtp(email, c.env);
+
+  return success(c, { message: 'OTP sent to your email' });
+});
+
+authRoutes.post('/verify', zValidator('json', VerifyOtpSchema), async (c) => {
+  const { email, code } = c.req.valid('json');
+
+  const valid = await verifyOtp(email, code, c.env);
+  if (!valid) {
+    return error(c, 'INVALID_OTP', 'Invalid or expired OTP', 401);
+  }
+
+  const user = await c.env.DB.prepare('SELECT id, name, email, role FROM users WHERE email = ?')
+    .bind(email)
+    .first<{ id: string; name: string; email: string; role: string }>();
+
+  if (!user) {
+    return error(c, 'USER_NOT_FOUND', 'User not found', 404);
+  }
+
+  const sessionId = await createSession(user.id, user.email, user.role, user.name, c.env);
+
+  await c.env.DB.prepare('UPDATE users SET last_login_at = ? WHERE id = ?')
+    .bind(new Date().toISOString(), user.id)
+    .run();
+
+  setCookie(c, 'session_id', sessionId, {
+    httpOnly: true,
+    secure: c.env.ENVIRONMENT === 'production',
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 86400,
+  });
+
+  return success(c, { user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
+authRoutes.post('/logout', async (c) => {
+  const sessionId = getCookie(c, 'session_id');
+  if (sessionId) {
+    await deleteSession(sessionId, c.env);
+  }
+  deleteCookie(c, 'session_id', { path: '/' });
+  return success(c, { message: 'Logged out' });
+});
+
+authRoutes.get('/me', async (c) => {
+  const sessionId = getCookie(c, 'session_id');
+  if (!sessionId) {
+    return error(c, 'UNAUTHORIZED', 'Not authenticated', 401);
+  }
+  const session = await getSession(sessionId, c.env);
+  if (!session) {
+    return error(c, 'UNAUTHORIZED', 'Session expired', 401);
+  }
+  return success(c, { user: session });
+});
