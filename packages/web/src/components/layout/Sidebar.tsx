@@ -36,11 +36,11 @@ export function Sidebar() {
             <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
           </div>
           <div>
-            <h1 className="font-bold text-sm tracking-wide text-white" style={{ fontFamily: 'var(--font-display)' }}>
+            <h1 className="font-bold text-[15px] tracking-wide text-white" style={{ fontFamily: 'var(--font-display)' }}>
               SmartGate
             </h1>
-            <p className="text-[10px] tracking-[0.15em] uppercase text-accent/70 font-medium">
-              Visitor Management
+            <p className="text-[10px] tracking-[0.12em] uppercase text-accent/70 font-medium leading-tight">
+              Visitor Management System
             </p>
           </div>
         </div>
@@ -62,7 +62,7 @@ export function Sidebar() {
             end={item.to === '/'}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 group relative',
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14px] font-medium transition-all duration-200 group relative',
                 isActive
                   ? 'bg-white/12 text-white shadow-inner shadow-white/5'
                   : 'text-white/55 hover:bg-white/8 hover:text-white/90'
@@ -97,7 +97,7 @@ export function Sidebar() {
         <div className="h-[1px] w-full bg-white/8 mb-3" />
         <button
           onClick={logout}
-          className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[13px] font-medium text-white/40 hover:bg-secondary/30 hover:text-white/80 w-full transition-all duration-200"
+          className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14px] font-medium text-white/40 hover:bg-secondary/30 hover:text-white/80 w-full transition-all duration-200"
         >
           <LogOut className="h-[18px] w-[18px] shrink-0" />
           Sign Out

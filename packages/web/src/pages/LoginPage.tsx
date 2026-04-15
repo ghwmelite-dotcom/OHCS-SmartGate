@@ -93,7 +93,7 @@ export function LoginPage() {
               background: 'linear-gradient(90deg, transparent, #D4A017)',
             }} />
             <p className="text-accent/80 text-xs tracking-[0.25em] uppercase font-medium">
-              Visitor Management
+              Visitor Management System
             </p>
             <div className="h-[1px] w-8" style={{
               background: 'linear-gradient(90deg, #D4A017, transparent)',
@@ -130,7 +130,7 @@ export function LoginPage() {
             <h1 className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
               OHCS SmartGate
             </h1>
-            <p className="text-muted text-xs tracking-[0.15em] uppercase mt-1">Visitor Management</p>
+            <p className="text-muted text-xs tracking-[0.15em] uppercase mt-1">Visitor Management System</p>
           </div>
 
           {/* Form card */}
@@ -153,7 +153,7 @@ export function LoginPage() {
                   <h2 className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
                     {mode === 'pin' ? 'Staff Sign In' : mode === 'email' ? 'Email Sign In' : 'Verification'}
                   </h2>
-                  <p className="text-[11px] text-muted">
+                  <p className="text-[13px] text-muted">
                     {mode === 'pin' ? 'Enter your staff ID and PIN' : mode === 'email' ? 'We\'ll send a code to your email' : 'Enter the code sent to your email'}
                   </p>
                 </div>
@@ -162,7 +162,7 @@ export function LoginPage() {
               {/* PIN Login */}
               {mode === 'pin' && (
                 <form onSubmit={handlePinSubmit}>
-                  <label className="block text-[11px] font-semibold text-foreground/70 uppercase tracking-wide mb-2">
+                  <label className="block text-[12px] font-semibold text-foreground/70 uppercase tracking-wide mb-2">
                     Staff ID
                   </label>
                   <input
@@ -175,7 +175,7 @@ export function LoginPage() {
                     autoFocus
                   />
 
-                  <label className="block text-[11px] font-semibold text-foreground/70 uppercase tracking-wide mb-2 mt-4">
+                  <label className="block text-[12px] font-semibold text-foreground/70 uppercase tracking-wide mb-2 mt-4">
                     4-Digit PIN
                   </label>
                   <input
@@ -228,7 +228,7 @@ export function LoginPage() {
               {/* Email Login */}
               {mode === 'email' && (
                 <form onSubmit={handleEmailSubmit}>
-                  <label className="block text-[11px] font-semibold text-foreground/70 uppercase tracking-wide mb-2">
+                  <label className="block text-[12px] font-semibold text-foreground/70 uppercase tracking-wide mb-2">
                     Email Address
                   </label>
                   <input
@@ -282,7 +282,7 @@ export function LoginPage() {
                   <p className="text-sm text-muted mb-5">
                     Enter the 6-digit code sent to <strong className="text-foreground">{email}</strong>
                   </p>
-                  <label className="block text-[11px] font-semibold text-foreground/70 uppercase tracking-wide mb-2">
+                  <label className="block text-[12px] font-semibold text-foreground/70 uppercase tracking-wide mb-2">
                     Verification Code
                   </label>
                   <input

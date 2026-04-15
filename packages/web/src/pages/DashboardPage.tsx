@@ -63,10 +63,10 @@ export function DashboardPage() {
     <div className="space-y-6">
       {/* Page title */}
       <div className="animate-fade-in-up">
-        <h1 className="text-2xl font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+        <h1 className="text-[28px] font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
           Dashboard
         </h1>
-        <p className="text-sm text-muted mt-0.5">Real-time visitor overview</p>
+        <p className="text-[15px] text-muted mt-0.5">Real-time visitor overview</p>
       </div>
 
       {/* Stats row */}
@@ -105,14 +105,14 @@ export function DashboardPage() {
       <div className="flex flex-wrap items-center gap-3 animate-fade-in-up stagger-3">
         <button
           onClick={() => navigate('/check-in')}
-          className="inline-flex items-center gap-2 h-11 px-5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-light transition-all shadow-lg shadow-primary/15 active:scale-[0.98]"
+          className="inline-flex items-center gap-2 h-11 px-5 bg-primary text-white text-[14px] font-semibold rounded-xl hover:bg-primary-light transition-all shadow-lg shadow-primary/15 active:scale-[0.98]"
         >
           <LogIn className="h-4 w-4" />
           New Check-In
         </button>
         <button
           onClick={() => navigate('/visitors')}
-          className="inline-flex items-center gap-2 h-11 px-5 bg-surface text-foreground text-sm font-medium rounded-xl border border-border hover:border-accent/40 hover:shadow-sm transition-all"
+          className="inline-flex items-center gap-2 h-11 px-5 bg-surface text-foreground text-[14px] font-medium rounded-xl border border-border hover:border-accent/40 hover:shadow-sm transition-all"
         >
           <Search className="h-4 w-4 text-muted" />
           Find Visitor
@@ -132,10 +132,10 @@ export function DashboardPage() {
               <Flame className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+              <h2 className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
                 Active Visits
               </h2>
-              <p className="text-[11px] text-muted mt-0.5">
+              <p className="text-[12px] text-muted mt-0.5">
                 Currently in building &middot; auto-refreshes
               </p>
             </div>
@@ -186,7 +186,7 @@ export function DashboardPage() {
 
                 {/* Visitor info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">
+                  <p className="text-[15px] font-semibold text-foreground truncate">
                     {visit.first_name} {visit.last_name}
                   </p>
                   <div className="flex items-center gap-2 text-[11px] text-muted mt-0.5">
@@ -282,7 +282,7 @@ function StatCard({
         <p className="text-2xl font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
           {value}
         </p>
-        <p className="text-[11px] text-muted font-medium mt-0.5">{label}</p>
+        <p className="text-[13px] text-muted font-medium mt-0.5">{label}</p>
       </div>
     </div>
   );

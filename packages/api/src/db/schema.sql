@@ -18,8 +18,10 @@ CREATE TABLE IF NOT EXISTS directorates (
     id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     name            TEXT NOT NULL,
     abbreviation    TEXT NOT NULL UNIQUE,
+    type            TEXT NOT NULL DEFAULT 'directorate' CHECK(type IN ('directorate','secretariat','unit')),
     floor           TEXT,
     wing            TEXT,
+    rooms           TEXT,
     head_officer_id TEXT,
     is_active       INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))

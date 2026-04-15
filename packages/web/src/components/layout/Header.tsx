@@ -14,10 +14,10 @@ export function Header() {
           <MapPin className="h-3.5 w-3.5" />
         </div>
         <div>
-          <p className="text-[11px] font-medium text-foreground/80 tracking-wide">
+          <p className="text-[13px] font-medium text-foreground/80 tracking-wide">
             Office of the Head of Civil Service
           </p>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             Accra, Ghana &middot; {formatDate(new Date().toISOString())}
           </p>
         </div>
@@ -31,10 +31,10 @@ export function Header() {
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-[13px] font-semibold text-foreground">{user?.name}</p>
-            <p className="text-[10px] text-accent font-medium uppercase tracking-wide">{user?.role}</p>
+            <p className="text-sm font-semibold text-foreground">{user?.name}</p>
+            <p className="text-[11px] text-accent font-medium uppercase tracking-wide">{user?.role}</p>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center text-sm font-bold shadow-sm">
             {user?.name?.charAt(0) ?? '?'}
           </div>
         </div>
