@@ -11,9 +11,9 @@ const TEMPLATES: Record<ImportType, { label: string; icon: typeof Users; headers
   users: {
     label: 'Users',
     icon: Users,
-    headers: ['name', 'email', 'staff_id', 'pin', 'role'],
-    example: ['Kwame Mensah', 'k.mensah@ohcs.gov.gh', '12345', '1234', 'officer'],
-    description: 'Import system users. Roles: superadmin, admin, receptionist, director, officer',
+    headers: ['name', 'email', 'staff_id', 'pin', 'role', 'grade', 'directorate_code'],
+    example: ['Kwame Mensah', 'k.mensah@ohcs.gov.gh', '12345', '1234', 'staff', 'Snr IT/IM Technician', 'RSIMD'],
+    description: 'Import users. Roles: superadmin, admin, receptionist, it, director, staff. Grade = job designation. Directorate code must match existing abbreviation.',
   },
   directorates: {
     label: 'Directorates & Units',

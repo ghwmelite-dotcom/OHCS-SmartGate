@@ -25,6 +25,8 @@ interface UserRecord {
   email: string;
   staff_id: string | null;
   role: string;
+  grade: string | null;
+  directorate_abbr: string | null;
   is_active: number;
   last_login_at: string | null;
   created_at: string;
@@ -34,8 +36,9 @@ const ROLES = [
   { value: 'superadmin', label: 'Super Admin', color: 'bg-secondary/10 text-secondary' },
   { value: 'admin', label: 'Admin', color: 'bg-accent/15 text-accent-warm' },
   { value: 'receptionist', label: 'Receptionist', color: 'bg-primary/10 text-primary' },
-  { value: 'director', label: 'Director', color: 'bg-info/10 text-info' },
-  { value: 'officer', label: 'Officer', color: 'bg-success/10 text-success' },
+  { value: 'it', label: 'IT Support', color: 'bg-info/10 text-info' },
+  { value: 'director', label: 'Director', color: 'bg-accent/10 text-accent-warm' },
+  { value: 'staff', label: 'Staff', color: 'bg-success/10 text-success' },
 ] as const;
 
 const createUserSchema = z.object({
@@ -43,7 +46,9 @@ const createUserSchema = z.object({
   email: z.string().email('Invalid email').max(255),
   staff_id: z.string().min(1, 'Staff ID is required').max(20),
   pin: z.string().length(4, 'PIN must be 4 digits').regex(/^\d{4}$/, 'PIN must be 4 digits'),
-  role: z.enum(['superadmin', 'admin', 'receptionist', 'director', 'officer']),
+  role: z.enum(['superadmin', 'admin', 'receptionist', 'it', 'director', 'staff']),
+  grade: z.string().max(100).optional(),
+  directorate_code: z.string().max(20).optional(),
 });
 type CreateUserForm = z.infer<typeof createUserSchema>;
 
@@ -51,7 +56,9 @@ const editUserSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email().max(255),
   staff_id: z.string().min(1).max(20),
-  role: z.enum(['superadmin', 'admin', 'receptionist', 'director', 'officer']),
+  role: z.enum(['superadmin', 'admin', 'receptionist', 'it', 'director', 'staff']),
+  grade: z.string().max(100).optional(),
+  directorate_code: z.string().max(20).optional(),
   pin: z.string().length(4).regex(/^\d{4}$/).or(z.literal('')).optional(),
 });
 type EditUserForm = z.infer<typeof editUserSchema>;
@@ -192,10 +199,11 @@ function UsersTab() {
                 <tr className="border-b border-border bg-background/50">
                   <th className="text-left px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Name</th>
                   <th className="text-left px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Staff ID</th>
-                  <th className="text-left px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Email</th>
+                  <th className="text-left px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Grade</th>
+                  <th className="text-left px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Dir</th>
                   <th className="text-left px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Role</th>
                   <th className="text-left px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Status</th>
-                  <th className="text-left px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Last Login</th>
+                  <th className="text-left px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide hidden xl:table-cell">Last Login</th>
                   <th className="text-right px-6 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
@@ -216,7 +224,14 @@ function UsersTab() {
                         <span className="text-[14px] font-mono font-medium text-foreground">{user.staff_id ?? '—'}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-[14px] text-muted">{user.email}</span>
+                        <span className="text-[14px] text-muted">{user.grade ?? '—'}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {user.directorate_abbr ? (
+                          <span className="inline-flex items-center h-6 px-2 text-[10px] font-bold bg-primary/8 text-primary rounded-lg">
+                            {user.directorate_abbr}
+                          </span>
+                        ) : '—'}
                       </td>
                       <td className="px-6 py-4">
                         <span className={cn(
@@ -283,7 +298,7 @@ function UsersTab() {
 function CreateUserModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const form = useForm<CreateUserForm>({
     resolver: zodResolver(createUserSchema),
-    defaultValues: { name: '', email: '', staff_id: '', pin: '', role: 'receptionist' },
+    defaultValues: { name: '', email: '', staff_id: '', pin: '', role: 'staff', grade: '', directorate_code: '' },
   });
 
   const mutation = useMutation({
@@ -319,15 +334,24 @@ function CreateUserModal({ onClose, onSuccess }: { onClose: () => void; onSucces
 
           <div className="grid grid-cols-3 gap-4">
             <FormField label="Staff ID" error={form.formState.errors.staff_id?.message}>
-              <input {...form.register('staff_id')} className={cn(inputCls, 'uppercase')} placeholder="OHCS-002" />
+              <input {...form.register('staff_id')} className={cn(inputCls, 'uppercase')} placeholder="12345" />
             </FormField>
             <FormField label="4-Digit PIN" error={form.formState.errors.pin?.message}>
               <input {...form.register('pin')} type="password" maxLength={4} className={cn(inputCls, 'text-center tracking-[0.3em] font-mono')} placeholder="****" inputMode="numeric" />
             </FormField>
-            <FormField label="Role" error={form.formState.errors.role?.message}>
+            <FormField label="System Role" error={form.formState.errors.role?.message}>
               <select {...form.register('role')} className={inputCls}>
                 {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Grade / Designation">
+              <input {...form.register('grade')} className={inputCls} placeholder="e.g. Snr IT/IM Technician" />
+            </FormField>
+            <FormField label="Directorate Code">
+              <input {...form.register('directorate_code')} className={cn(inputCls, 'uppercase')} placeholder="e.g. RSIMD" />
             </FormField>
           </div>
 
@@ -365,6 +389,8 @@ function EditUserModal({ user, onClose, onSuccess }: { user: UserRecord; onClose
       email: user.email,
       staff_id: user.staff_id ?? '',
       role: user.role as EditUserForm['role'],
+      grade: user.grade ?? '',
+      directorate_code: user.directorate_abbr ?? '',
       pin: '',
     },
   });
@@ -411,10 +437,19 @@ function EditUserModal({ user, onClose, onSuccess }: { user: UserRecord; onClose
             <FormField label="New PIN (optional)" error={form.formState.errors.pin?.message}>
               <input {...form.register('pin')} type="password" maxLength={4} className={cn(inputCls, 'text-center tracking-[0.3em] font-mono')} placeholder="****" inputMode="numeric" />
             </FormField>
-            <FormField label="Role" error={form.formState.errors.role?.message}>
+            <FormField label="System Role" error={form.formState.errors.role?.message}>
               <select {...form.register('role')} className={inputCls}>
                 {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Grade / Designation">
+              <input {...form.register('grade')} className={inputCls} placeholder="e.g. Snr IT/IM Technician" />
+            </FormField>
+            <FormField label="Directorate Code">
+              <input {...form.register('directorate_code')} className={cn(inputCls, 'uppercase')} placeholder="e.g. RSIMD" />
             </FormField>
           </div>
 

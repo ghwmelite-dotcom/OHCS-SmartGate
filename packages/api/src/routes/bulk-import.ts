@@ -17,7 +17,9 @@ const userRowSchema = z.object({
   email: z.string().email(),
   staff_id: z.string().min(1),
   pin: z.string().length(4).regex(/^\d{4}$/),
-  role: z.enum(['superadmin', 'admin', 'receptionist', 'director', 'officer']),
+  role: z.enum(['superadmin', 'admin', 'receptionist', 'it', 'director', 'staff']),
+  grade: z.string().optional().or(z.literal('')),
+  directorate_code: z.string().optional().or(z.literal('')),
 });
 
 bulkImportRoutes.post('/users', async (c) => {
@@ -43,7 +45,7 @@ bulkImportRoutes.post('/users', async (c) => {
       continue;
     }
 
-    const { name, email, staff_id, pin, role } = parsed.data;
+    const { name, email, staff_id, pin, role, grade, directorate_code } = parsed.data;
 
     // Check duplicates
     const existing = await c.env.DB.prepare(
@@ -56,12 +58,20 @@ bulkImportRoutes.post('/users', async (c) => {
       continue;
     }
 
+    // Resolve directorate
+    let directorateId: string | null = null;
+    if (directorate_code) {
+      const dir = await c.env.DB.prepare('SELECT id FROM directorates WHERE abbreviation = ?')
+        .bind(directorate_code.toUpperCase()).first<{ id: string }>();
+      if (dir) directorateId = dir.id;
+    }
+
     const id = crypto.randomUUID().replace(/-/g, '');
     const pinHash = await hashPin(pin);
 
     await c.env.DB.prepare(
-      'INSERT INTO users (id, name, email, staff_id, pin_hash, role) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(id, name, email.toLowerCase(), staff_id.toUpperCase(), pinHash, role).run();
+      'INSERT INTO users (id, name, email, staff_id, pin_hash, role, grade, directorate_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, name, email.toLowerCase(), staff_id.toUpperCase(), pinHash, role, grade || null, directorateId).run();
 
     imported++;
   }

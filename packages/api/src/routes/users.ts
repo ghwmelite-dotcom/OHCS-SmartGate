@@ -18,7 +18,10 @@ userRoutes.get('/', async (c) => {
   if (!requireSuperadmin(c)) return error(c, 'FORBIDDEN', 'Superadmin access required', 403);
 
   const results = await c.env.DB.prepare(
-    'SELECT id, name, email, staff_id, role, is_active, last_login_at, created_at FROM users ORDER BY created_at DESC'
+    `SELECT u.id, u.name, u.email, u.staff_id, u.role, u.grade, u.is_active, u.last_login_at, u.created_at,
+            d.abbreviation as directorate_abbr
+     FROM users u LEFT JOIN directorates d ON u.directorate_id = d.id
+     ORDER BY u.created_at DESC`
   ).all();
 
   return success(c, results.results ?? []);
@@ -43,7 +46,9 @@ const createUserSchema = z.object({
   email: z.string().email().max(255).toLowerCase().trim(),
   staff_id: z.string().min(1).max(20).trim(),
   pin: z.string().length(4).regex(/^\d{4}$/, 'PIN must be 4 digits'),
-  role: z.enum(['superadmin', 'admin', 'receptionist', 'director', 'officer']),
+  role: z.enum(['superadmin', 'admin', 'receptionist', 'it', 'director', 'staff']),
+  grade: z.string().max(100).optional().or(z.literal('')),
+  directorate_code: z.string().max(20).optional().or(z.literal('')),
 });
 
 userRoutes.post('/', zValidator('json', createUserSchema), async (c) => {
@@ -61,12 +66,22 @@ userRoutes.post('/', zValidator('json', createUserSchema), async (c) => {
   const id = crypto.randomUUID().replace(/-/g, '');
   const pinHash = await hashPin(body.pin);
 
+  // Resolve directorate code to ID
+  let directorateId: string | null = null;
+  if (body.directorate_code) {
+    const dir = await c.env.DB.prepare('SELECT id FROM directorates WHERE abbreviation = ?')
+      .bind(body.directorate_code.toUpperCase()).first<{ id: string }>();
+    if (dir) directorateId = dir.id;
+  }
+
   await c.env.DB.prepare(
-    `INSERT INTO users (id, name, email, staff_id, pin_hash, role) VALUES (?, ?, ?, ?, ?, ?)`
-  ).bind(id, body.name, body.email, body.staff_id.toUpperCase(), pinHash, body.role).run();
+    `INSERT INTO users (id, name, email, staff_id, pin_hash, role, grade, directorate_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, body.name, body.email, body.staff_id.toUpperCase(), pinHash, body.role, body.grade || null, directorateId).run();
 
   const user = await c.env.DB.prepare(
-    'SELECT id, name, email, staff_id, role, is_active, created_at FROM users WHERE id = ?'
+    `SELECT u.id, u.name, u.email, u.staff_id, u.role, u.grade, u.is_active, u.created_at,
+            d.abbreviation as directorate_abbr
+     FROM users u LEFT JOIN directorates d ON u.directorate_id = d.id WHERE u.id = ?`
   ).bind(id).first();
 
   return created(c, user);
@@ -78,7 +93,9 @@ const updateUserSchema = z.object({
   email: z.string().email().max(255).toLowerCase().trim().optional(),
   staff_id: z.string().min(1).max(20).trim().optional(),
   pin: z.string().length(4).regex(/^\d{4}$/).optional(),
-  role: z.enum(['superadmin', 'admin', 'receptionist', 'director', 'officer']).optional(),
+  role: z.enum(['superadmin', 'admin', 'receptionist', 'it', 'director', 'staff']).optional(),
+  grade: z.string().max(100).optional().or(z.literal('')),
+  directorate_code: z.string().max(20).optional().or(z.literal('')),
   is_active: z.number().min(0).max(1).optional(),
 });
 
@@ -98,6 +115,16 @@ userRoutes.put('/:id', zValidator('json', updateUserSchema), async (c) => {
   if (body.email !== undefined) { fields.push('email = ?'); values.push(body.email); }
   if (body.staff_id !== undefined) { fields.push('staff_id = ?'); values.push(body.staff_id.toUpperCase()); }
   if (body.role !== undefined) { fields.push('role = ?'); values.push(body.role); }
+  if (body.grade !== undefined) { fields.push('grade = ?'); values.push(body.grade || null); }
+  if (body.directorate_code !== undefined) {
+    if (body.directorate_code) {
+      const dir = await c.env.DB.prepare('SELECT id FROM directorates WHERE abbreviation = ?')
+        .bind(body.directorate_code.toUpperCase()).first<{ id: string }>();
+      fields.push('directorate_id = ?'); values.push(dir?.id ?? null);
+    } else {
+      fields.push('directorate_id = ?'); values.push(null);
+    }
+  }
   if (body.is_active !== undefined) { fields.push('is_active = ?'); values.push(body.is_active); }
   if (body.pin !== undefined) {
     const pinHash = await hashPin(body.pin);
