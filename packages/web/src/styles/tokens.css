@@ -180,3 +180,8 @@
 /* Dark scrollbar */
 .dark ::-webkit-scrollbar-thumb { background: #354036; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #4A5A4B; }
+
+/* Safe area for bottom nav on notched devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
