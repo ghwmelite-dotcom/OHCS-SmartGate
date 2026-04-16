@@ -56,7 +56,7 @@ authRoutes.post('/verify', zValidator('json', verifySchema), async (c) => {
   setCookie(c, 'session_id', sessionId, {
     httpOnly: true,
     secure: c.env.ENVIRONMENT === 'production',
-    sameSite: 'Lax',
+    sameSite: c.env.ENVIRONMENT === 'production' ? 'None' : 'Lax',
     path: '/',
     maxAge: ttl,
   });
@@ -102,7 +102,7 @@ authRoutes.post('/pin-login', zValidator('json', pinLoginSchema), async (c) => {
   setCookie(c, 'session_id', sessionId, {
     httpOnly: true,
     secure: c.env.ENVIRONMENT === 'production',
-    sameSite: 'Lax',
+    sameSite: c.env.ENVIRONMENT === 'production' ? 'None' : 'Lax',
     path: '/',
     maxAge: ttl,
   });
