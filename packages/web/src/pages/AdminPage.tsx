@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 import { DirectoratesTab } from '@/components/admin/DirectoratesTab';
 import { BulkImportTab } from '@/components/admin/BulkImportTab';
+import { AttendanceTab } from '@/components/admin/AttendanceTab';
 import {
   Users,
   UserPlus,
@@ -56,7 +57,7 @@ const editUserSchema = z.object({
 type EditUserForm = z.infer<typeof editUserSchema>;
 
 export function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'users' | 'org' | 'import'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'org' | 'attendance' | 'import'>('users');
 
   return (
     <div className="space-y-6">
@@ -73,7 +74,8 @@ export function AdminPage() {
       <div className="flex gap-1 bg-surface rounded-xl border border-border p-1 w-fit animate-fade-in-up stagger-1">
         {([
           { value: 'users' as const, label: 'Users' },
-          { value: 'org' as const, label: 'Org Entities & Officers' },
+          { value: 'org' as const, label: 'Org Entities' },
+          { value: 'attendance' as const, label: 'Attendance' },
           { value: 'import' as const, label: 'Bulk Import' },
         ]).map(tab => (
           <button
@@ -93,6 +95,7 @@ export function AdminPage() {
 
       {activeTab === 'users' && <UsersTab />}
       {activeTab === 'org' && <DirectoratesTab />}
+      {activeTab === 'attendance' && <AttendanceTab />}
       {activeTab === 'import' && <BulkImportTab />}
     </div>
   );
