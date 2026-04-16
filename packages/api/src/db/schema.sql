@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS visits (
     id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     visitor_id       TEXT NOT NULL REFERENCES visitors(id),
     host_officer_id  TEXT REFERENCES officers(id),
+    host_name_manual TEXT,
     directorate_id   TEXT REFERENCES directorates(id),
     purpose_raw      TEXT,
     purpose_category TEXT,

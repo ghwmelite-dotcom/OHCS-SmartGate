@@ -47,6 +47,7 @@ type NewVisitorForm = z.infer<typeof newVisitorSchema>;
 const checkInSchema = z.object({
   directorate_id: z.string().optional(),
   host_officer_id: z.string().optional(),
+  host_name_manual: z.string().max(100).optional(),
   purpose_raw: z.string().max(500).optional(),
 });
 type CheckInForm = z.infer<typeof checkInSchema>;
@@ -108,7 +109,7 @@ export function CheckInPage() {
   /* ---- Check-in form ---- */
   const checkInForm = useForm<CheckInForm>({
     resolver: zodResolver(checkInSchema),
-    defaultValues: { directorate_id: '', host_officer_id: '', purpose_raw: '' },
+    defaultValues: { directorate_id: '', host_officer_id: '', host_name_manual: '', purpose_raw: '' },
   });
 
   const selectedDirectorateId = checkInForm.watch('directorate_id');
@@ -412,16 +413,17 @@ export function CheckInPage() {
               </select>
             </FieldWrapper>
 
-            <FieldWrapper icon={<User className="h-4 w-4" />} label="Host Officer">
-              <select {...checkInForm.register('host_officer_id')} className={fieldCls}>
-                <option value="">Select host officer...</option>
-                {filteredOfficers.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}{o.title ? ` — ${o.title}` : ''}{o.directorate_abbr ? ` (${o.directorate_abbr})` : ''}
-                  </option>
-                ))}
-              </select>
-            </FieldWrapper>
+            <HostOfficerField
+              officers={filteredOfficers}
+              onSelect={(officerId) => {
+                checkInForm.setValue('host_officer_id', officerId);
+                checkInForm.setValue('host_name_manual', '');
+              }}
+              onManual={(name) => {
+                checkInForm.setValue('host_officer_id', '');
+                checkInForm.setValue('host_name_manual', name);
+              }}
+            />
 
             <FieldWrapper label="Purpose of Visit">
               <textarea
@@ -525,6 +527,102 @@ function FieldWrapper({
       {children}
       {error && <p className="text-danger text-xs mt-1">{error}</p>}
     </div>
+  );
+}
+
+function HostOfficerField({ officers, onSelect, onManual }: {
+  officers: Officer[];
+  onSelect: (id: string) => void;
+  onManual: (name: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedName, setSelectedName] = useState('');
+  const [isManual, setIsManual] = useState(false);
+
+  const filtered = query.length >= 1
+    ? officers.filter(o => o.name.toLowerCase().includes(query.toLowerCase()))
+    : officers;
+
+  function handleSelectOfficer(o: Officer) {
+    setSelectedName(`${o.name}${o.title ? ` — ${o.title}` : ''}${o.directorate_abbr ? ` (${o.directorate_abbr})` : ''}`);
+    setQuery('');
+    setIsOpen(false);
+    setIsManual(false);
+    onSelect(o.id);
+  }
+
+  function handleManualInput(value: string) {
+    setQuery(value);
+    setSelectedName('');
+    setIsManual(true);
+    onManual(value);
+    setIsOpen(value.length >= 1);
+  }
+
+  function clear() {
+    setQuery('');
+    setSelectedName('');
+    setIsManual(false);
+    onSelect('');
+    onManual('');
+  }
+
+  return (
+    <FieldWrapper icon={<User className="h-4 w-4" />} label="Host Officer">
+      <div className="relative">
+        {selectedName ? (
+          <div className="flex items-center gap-2">
+            <div className={cn(fieldCls, 'flex items-center text-[14px] text-foreground')}>
+              {selectedName}
+            </div>
+            <button type="button" onClick={clear} className="h-10 w-10 rounded-xl flex items-center justify-center text-muted hover:text-danger hover:bg-danger/5 shrink-0 transition-all">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => handleManualInput(e.target.value)}
+              onFocus={() => setIsOpen(true)}
+              className={fieldCls}
+              placeholder="Search or type a name..."
+              autoComplete="off"
+            />
+            {isManual && query.length >= 2 && (
+              <p className="text-[11px] text-accent-warm mt-1">
+                Typing a custom name — not linked to a registered officer
+              </p>
+            )}
+          </>
+        )}
+
+        {/* Dropdown suggestions */}
+        {isOpen && !selectedName && filtered.length > 0 && (
+          <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-surface rounded-xl border border-border shadow-lg max-h-48 overflow-y-auto">
+            {filtered.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => handleSelectOfficer(o)}
+                className="w-full text-left px-4 py-2.5 text-[14px] hover:bg-background-warm transition-colors flex items-center justify-between"
+              >
+                <span className="font-medium text-foreground">
+                  {o.name}{o.title ? <span className="text-muted font-normal"> — {o.title}</span> : ''}
+                </span>
+                {o.directorate_abbr && (
+                  <span className="text-[10px] font-bold bg-primary/8 text-primary px-2 py-0.5 rounded-md ml-2">
+                    {o.directorate_abbr}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </FieldWrapper>
   );
 }
 

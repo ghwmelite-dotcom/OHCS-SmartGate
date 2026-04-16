@@ -27,6 +27,7 @@ export const UpdateVisitorSchema = CreateVisitorSchema.partial();
 export const CheckInSchema = z.object({
   visitor_id: z.string().min(1),
   host_officer_id: z.string().optional(),
+  host_name_manual: z.string().max(100).optional(),
   directorate_id: z.string().optional(),
   purpose_raw: z.string().max(500).optional(),
   purpose_category: z.string().optional(),
