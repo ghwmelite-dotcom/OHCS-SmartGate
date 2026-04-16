@@ -15,6 +15,7 @@ import { analyticsRoutes } from './routes/analytics';
 import { reportRoutes } from './routes/reports';
 import { adminDirectorateRoutes } from './routes/admin-directorates';
 import { photoRoutes } from './routes/photos';
+import { bulkImportRoutes } from './routes/bulk-import';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 
@@ -67,6 +68,7 @@ app.route('/api/users', userRoutes);
 app.route('/api/analytics', analyticsRoutes);
 app.route('/api/reports', reportRoutes);
 app.route('/api/admin/directorates', adminDirectorateRoutes);
+app.route('/api/admin/import', bulkImportRoutes);
 app.route('/api/photos', photoRoutes);
 app.post('/api/telegram/link', telegramLinkRoute);
 

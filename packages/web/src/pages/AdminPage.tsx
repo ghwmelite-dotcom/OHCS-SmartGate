@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { api } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 import { DirectoratesTab } from '@/components/admin/DirectoratesTab';
+import { BulkImportTab } from '@/components/admin/BulkImportTab';
 import {
   Users,
   UserPlus,
@@ -55,7 +56,7 @@ const editUserSchema = z.object({
 type EditUserForm = z.infer<typeof editUserSchema>;
 
 export function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'users' | 'org'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'org' | 'import'>('users');
 
   return (
     <div className="space-y-6">
@@ -73,6 +74,7 @@ export function AdminPage() {
         {([
           { value: 'users' as const, label: 'Users' },
           { value: 'org' as const, label: 'Org Entities & Officers' },
+          { value: 'import' as const, label: 'Bulk Import' },
         ]).map(tab => (
           <button
             key={tab.value}
@@ -89,7 +91,9 @@ export function AdminPage() {
         ))}
       </div>
 
-      {activeTab === 'users' ? <UsersTab /> : <DirectoratesTab />}
+      {activeTab === 'users' && <UsersTab />}
+      {activeTab === 'org' && <DirectoratesTab />}
+      {activeTab === 'import' && <BulkImportTab />}
     </div>
   );
 }
