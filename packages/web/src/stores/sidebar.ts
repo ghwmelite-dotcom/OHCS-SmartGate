@@ -1,13 +1,25 @@
 import { create } from 'zustand';
 
 interface SidebarState {
-  isOpen: boolean;
-  toggle: () => void;
-  close: () => void;
+  isCollapsed: boolean;   // Desktop: collapsed to icons only
+  isMobileOpen: boolean;  // Mobile/tablet: overlay open
+  toggleCollapse: () => void;
+  toggleMobile: () => void;
+  closeMobile: () => void;
 }
 
+const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('sidebar-collapsed') : null;
+
 export const useSidebarStore = create<SidebarState>((set) => ({
-  isOpen: false,
-  toggle: () => set((s) => ({ isOpen: !s.isOpen })),
-  close: () => set({ isOpen: false }),
+  isCollapsed: stored === 'true',
+  isMobileOpen: false,
+
+  toggleCollapse: () => set((s) => {
+    const next = !s.isCollapsed;
+    localStorage.setItem('sidebar-collapsed', String(next));
+    return { isCollapsed: next };
+  }),
+
+  toggleMobile: () => set((s) => ({ isMobileOpen: !s.isMobileOpen })),
+  closeMobile: () => set({ isMobileOpen: false }),
 }));

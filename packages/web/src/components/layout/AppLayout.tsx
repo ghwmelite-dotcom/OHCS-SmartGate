@@ -8,27 +8,29 @@ import { useSidebarStore } from '@/stores/sidebar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export function AppLayout() {
-  const { isOpen, close } = useSidebarStore();
+  const { isMobileOpen, closeMobile } = useSidebarStore();
   const location = useLocation();
 
   useKeyboardShortcuts();
 
-  // Close sidebar on route change (tablet navigation)
-  useEffect(() => { close(); }, [location.pathname, close]);
+  // Close mobile sidebar on route change
+  useEffect(() => { closeMobile(); }, [location.pathname, closeMobile]);
 
   return (
     <div className="flex h-screen overflow-hidden relative">
-      {/* Sidebar — always visible on desktop (xl+), overlay on tablet/mobile */}
-      <div className="hidden xl:block">
+      {/* Desktop/laptop sidebar — always visible, collapsible (lg+ = 1024px+) */}
+      <div className="hidden lg:block">
         <Sidebar />
       </div>
 
-      {/* Mobile/tablet overlay sidebar */}
-      {isOpen && (
+      {/* Mobile/tablet overlay sidebar (below lg) */}
+      {isMobileOpen && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-40 xl:hidden animate-fade-in" onClick={close} />
-          <div className="fixed left-0 top-0 bottom-0 z-50 xl:hidden animate-slide-in-right">
-            <Sidebar />
+          <div className="fixed inset-0 bg-black/50 z-40 lg:hidden animate-fade-in" onClick={closeMobile} />
+          <div className="fixed left-0 top-0 bottom-0 z-50 lg:hidden" style={{
+            animation: 'slideInLeft 0.25s ease-out both',
+          }}>
+            <Sidebar forceExpanded />
           </div>
         </>
       )}
@@ -41,6 +43,13 @@ export function AppLayout() {
       </div>
       <ChatBubble />
       <Toaster />
+
+      <style>{`
+        @keyframes slideInLeft {
+          from { transform: translateX(-100%); }
+          to { transform: translateX(0); }
+        }
+      `}</style>
     </div>
   );
 }

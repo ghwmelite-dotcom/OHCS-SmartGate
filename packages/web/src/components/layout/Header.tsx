@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 export function Header() {
   const user = useAuthStore((s) => s.user);
   const { theme, setTheme } = useThemeStore();
-  const toggleSidebar = useSidebarStore((s) => s.toggle);
+  const toggleMobile = useSidebarStore((s) => s.toggleMobile);
 
   const themeOptions = [
     { value: 'light' as const, icon: Sun, label: 'Light' },
@@ -23,13 +23,13 @@ export function Header() {
       <div className="flex items-center gap-3">
         {/* Hamburger — tablet/mobile only */}
         <button
-          onClick={toggleSidebar}
-          className="xl:hidden h-9 w-9 rounded-xl flex items-center justify-center text-foreground hover:bg-background transition-all"
+          onClick={toggleMobile}
+          className="lg:hidden h-9 w-9 rounded-xl flex items-center justify-center text-foreground hover:bg-background transition-all"
         >
           <Menu className="h-5 w-5" />
         </button>
 
-        <div className="hidden sm:flex items-center gap-2.5">
+        <div className="hidden md:flex items-center gap-2.5">
           <div className="flex items-center gap-1.5 text-accent">
             <MapPin className="h-3.5 w-3.5" />
           </div>
