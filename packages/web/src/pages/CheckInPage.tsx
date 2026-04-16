@@ -724,7 +724,10 @@ function BadgeQRCode({ badgeCode }: { badgeCode: string }) {
 
   useEffect(() => {
     if (canvasRef.current) {
-      const badgeUrl = `${window.location.origin}/badge/${badgeCode}`;
+      const apiBase = import.meta.env.PROD
+        ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev'
+        : 'http://localhost:8787';
+      const badgeUrl = `${apiBase}/badge/${badgeCode}`;
       QRCode.toCanvas(canvasRef.current, badgeUrl, {
         width: 200,
         margin: 2,
