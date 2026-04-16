@@ -559,9 +559,8 @@ const ID_TYPE_CONFIG: Record<string, { label: string; placeholder: string; hint:
   },
   staff_id: {
     label: 'Staff ID Number',
-    placeholder: 'OHCS-001',
+    placeholder: '12345',
     hint: 'Government staff identification',
-    format: (v: string) => v.toUpperCase(),
   },
   other: {
     label: 'ID Number',
