@@ -327,19 +327,7 @@ export function CheckInPage() {
               <input {...newVisitorForm.register('organisation')} className={fieldCls} placeholder="e.g. Ministry of Finance" />
             </FieldWrapper>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FieldWrapper icon={<CreditCard className="h-4 w-4" />} label="ID Type">
-                <select {...newVisitorForm.register('id_type')} className={fieldCls}>
-                  <option value="">Select...</option>
-                  {ID_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </FieldWrapper>
-              <FieldWrapper icon={<CreditCard className="h-4 w-4" />} label="ID Number">
-                <input {...newVisitorForm.register('id_number')} className={fieldCls} placeholder="GHA-XXXXXXXXX-X" />
-              </FieldWrapper>
-            </div>
+            <SmartIdFields form={newVisitorForm} />
 
             {createVisitorMutation.isError && (
               <p className="text-danger text-xs">
@@ -536,6 +524,100 @@ function FieldWrapper({
       </label>
       {children}
       {error && <p className="text-danger text-xs mt-1">{error}</p>}
+    </div>
+  );
+}
+
+const ID_TYPE_CONFIG: Record<string, { label: string; placeholder: string; hint: string; format?: (v: string) => string }> = {
+  ghana_card: {
+    label: 'Ghana Card Number',
+    placeholder: 'GHA-XXXXXXXXX-X',
+    hint: 'Format: GHA-000000000-0',
+    format: (v: string) => {
+      const digits = v.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      if (digits.length <= 3) return digits;
+      if (digits.length <= 12) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+      return `${digits.slice(0, 3)}-${digits.slice(3, 12)}-${digits.slice(12, 13)}`;
+    },
+  },
+  passport: {
+    label: 'Passport Number',
+    placeholder: 'G0123456',
+    hint: 'Ghana passport number',
+    format: (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 9),
+  },
+  drivers_license: {
+    label: 'License Number',
+    placeholder: 'DL-00000000-00',
+    hint: 'DVLA driver\'s license number',
+    format: (v: string) => {
+      const clean = v.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      if (clean.length <= 2) return clean;
+      if (clean.length <= 10) return `${clean.slice(0, 2)}-${clean.slice(2)}`;
+      return `${clean.slice(0, 2)}-${clean.slice(2, 10)}-${clean.slice(10, 12)}`;
+    },
+  },
+  staff_id: {
+    label: 'Staff ID Number',
+    placeholder: 'OHCS-001',
+    hint: 'Government staff identification',
+    format: (v: string) => v.toUpperCase(),
+  },
+  other: {
+    label: 'ID Number',
+    placeholder: 'Enter ID number',
+    hint: 'Enter the identification number',
+  },
+};
+
+function SmartIdFields({ form }: { form: ReturnType<typeof useForm<NewVisitorForm>> }) {
+  const selectedType = form.watch('id_type');
+  const config = selectedType ? ID_TYPE_CONFIG[selectedType] : null;
+
+  return (
+    <div className="space-y-4">
+      <FieldWrapper icon={<CreditCard className="h-4 w-4" />} label="ID Type">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {ID_TYPES.map((t) => {
+            const isSelected = selectedType === t.value;
+            return (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => {
+                  form.setValue('id_type', isSelected ? undefined : t.value as NewVisitorForm['id_type']);
+                  if (isSelected) form.setValue('id_number', '');
+                }}
+                className={cn(
+                  'h-10 px-3 rounded-xl text-[13px] font-medium border transition-all text-left',
+                  isSelected
+                    ? 'bg-primary/10 border-primary/30 text-primary'
+                    : 'bg-background border-border text-foreground hover:border-primary/20'
+                )}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </FieldWrapper>
+
+      {config && (
+        <div className="animate-fade-in-up">
+          <FieldWrapper icon={<CreditCard className="h-4 w-4" />} label={config.label} error={form.formState.errors.id_number?.message}>
+            <input
+              {...form.register('id_number')}
+              className={fieldCls}
+              placeholder={config.placeholder}
+              onChange={(e) => {
+                const formatted = config.format ? config.format(e.target.value) : e.target.value;
+                form.setValue('id_number', formatted);
+              }}
+            />
+            <p className="text-[11px] text-muted-foreground mt-1.5">{config.hint}</p>
+          </FieldWrapper>
+        </div>
+      )}
     </div>
   );
 }
