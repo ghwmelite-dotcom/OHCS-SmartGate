@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
+import { DirectoratesTab } from '@/components/admin/DirectoratesTab';
 import {
   Users,
   UserPlus,
@@ -88,16 +89,11 @@ export function AdminPage() {
         ))}
       </div>
 
-      {activeTab === 'users' ? <UsersTab /> : <DirectoratesTabWrapper />}
+      {activeTab === 'users' ? <UsersTab /> : <DirectoratesTab />}
     </div>
   );
 }
 
-function DirectoratesTabWrapper() {
-  // Lazy import to keep AdminPage file focused
-  const { DirectoratesTab } = require('@/components/admin/DirectoratesTab');
-  return <DirectoratesTab />;
-}
 
 function UsersTab() {
   const queryClient = useQueryClient();
