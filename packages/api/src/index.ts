@@ -16,6 +16,8 @@ import { reportRoutes } from './routes/reports';
 import { adminDirectorateRoutes } from './routes/admin-directorates';
 import { photoRoutes } from './routes/photos';
 import { bulkImportRoutes } from './routes/bulk-import';
+import { clockRoutes } from './routes/clock';
+import { attendanceRoutes } from './routes/attendance';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 
@@ -30,6 +32,7 @@ app.use('*', cors({
     ];
     if (allowed.includes(origin)) return origin;
     if (origin.endsWith('.ohcs-smartgate.pages.dev')) return origin;
+    if (origin === 'https://staff-attendance.pages.dev' || origin.endsWith('.staff-attendance.pages.dev')) return origin;
     return allowed[0]!;
   },
   credentials: true,
@@ -55,6 +58,15 @@ app.get('/api/photos/visitors/:id', async (c) => {
   headers.set('Cache-Control', 'public, max-age=3600');
   return new Response(object.body, { headers });
 });
+app.get('/api/photos/clock/:id', async (c) => {
+  const clockId = c.req.param('id');
+  const object = await c.env.STORAGE.get(`photos/clock/${clockId}.jpg`);
+  if (!object) return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Photo not found' } }, 404);
+  const headers = new Headers();
+  headers.set('Content-Type', 'image/jpeg');
+  headers.set('Cache-Control', 'public, max-age=3600');
+  return new Response(object.body, { headers });
+});
 
 // Protected routes
 app.use('/api/*', authMiddleware);
@@ -69,6 +81,8 @@ app.route('/api/analytics', analyticsRoutes);
 app.route('/api/reports', reportRoutes);
 app.route('/api/admin/directorates', adminDirectorateRoutes);
 app.route('/api/admin/import', bulkImportRoutes);
+app.route('/api/clock', clockRoutes);
+app.route('/api/attendance', attendanceRoutes);
 app.route('/api/photos', photoRoutes);
 app.post('/api/telegram/link', telegramLinkRoute);
 
