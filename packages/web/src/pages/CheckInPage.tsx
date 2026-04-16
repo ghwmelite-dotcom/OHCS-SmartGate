@@ -402,8 +402,35 @@ export function CheckInPage() {
 
           <form
             onSubmit={checkInForm.handleSubmit((data) => checkInMutation.mutate(data))}
-            className="bg-surface rounded-xl border border-border shadow-sm p-5 space-y-4"
+            className="bg-surface rounded-2xl border border-border shadow-sm p-5 space-y-4"
           >
+            {/* 1. PURPOSE FIRST — triggers auto-routing */}
+            <FieldWrapper label="Purpose of Visit">
+              <textarea
+                {...checkInForm.register('purpose_raw')}
+                rows={2}
+                className={cn(fieldCls, 'h-auto py-2.5 resize-none')}
+                placeholder="e.g. Check on salary issues, submit documents, training enquiry..."
+                onChange={(e) => {
+                  checkInForm.setValue('purpose_raw', e.target.value);
+                  // Auto-suggest directorate based on keywords
+                  const suggestion = suggestDirectorate(e.target.value, directorates);
+                  if (suggestion && !checkInForm.getValues('directorate_id')) {
+                    checkInForm.setValue('directorate_id', suggestion.id);
+                  }
+                }}
+              />
+            </FieldWrapper>
+
+            {/* Auto-suggestion hint */}
+            <PurposeRoutingHint
+              purpose={checkInForm.watch('purpose_raw') ?? ''}
+              directorates={directorates}
+              currentDirectorateId={selectedDirectorateId ?? ''}
+              onAccept={(id) => checkInForm.setValue('directorate_id', id)}
+            />
+
+            {/* 2. DIRECTORATE — auto-filled or manual */}
             <FieldWrapper icon={<Building2 className="h-4 w-4" />} label="Directorate">
               <select {...checkInForm.register('directorate_id')} className={fieldCls}>
                 <option value="">Select directorate...</option>
@@ -413,6 +440,7 @@ export function CheckInPage() {
               </select>
             </FieldWrapper>
 
+            {/* 3. HOST OFFICER — filtered by directorate */}
             <HostOfficerField
               officers={filteredOfficers}
               onSelect={(officerId) => {
@@ -424,15 +452,6 @@ export function CheckInPage() {
                 checkInForm.setValue('host_name_manual', name);
               }}
             />
-
-            <FieldWrapper label="Purpose of Visit">
-              <textarea
-                {...checkInForm.register('purpose_raw')}
-                rows={3}
-                className={cn(fieldCls, 'h-auto py-2.5 resize-none')}
-                placeholder="e.g. Meeting with Director about procurement documents"
-              />
-            </FieldWrapper>
 
             {checkInMutation.isError && (
               <p className="text-danger text-xs">
@@ -526,6 +545,75 @@ function FieldWrapper({
       </label>
       {children}
       {error && <p className="text-danger text-xs mt-1">{error}</p>}
+    </div>
+  );
+}
+
+/* ---- Smart routing based on purpose keywords ---- */
+
+const ROUTING_KEYWORDS: Array<{ keywords: string[]; abbreviation: string; room: string }> = [
+  { keywords: ['document', 'submit', 'filing', 'registry', 'confidential'], abbreviation: 'REGISTRY', room: 'Room 4, 2nd Floor' },
+  { keywords: ['salary', 'ict', 'it system', 'computer', 'software', 'technology', 'research', 'data', 'statistics', 'survey', 'database', 'e-governance'], abbreviation: 'RSIMD', room: 'Deputy: Room 19, 1st Floor' },
+  { keywords: ['recruit', 'job', 'application', 'hiring', 'training', 'workshop', 'study leave', 'scholarship', 'capacity', 'induction', 'gimpa', 'entrance exam'], abbreviation: 'RTDD', room: 'Deputy: Room 9, 2nd Floor' },
+  { keywords: ['promotion', 'posting', 'transfer', 'career', 'succession', 'welfare', 'occupational health'], abbreviation: 'CMD', room: 'Deputy: Room 34, 1st Floor' },
+  { keywords: ['budget', 'payment', 'finance', 'account', 'procurement', 'stores', 'transport', 'vehicle', 'estate', 'maintenance', 'asset', 'personnel'], abbreviation: 'F&A', room: 'Deputy: Room 35, 1st Floor' },
+  { keywords: ['performance', 'appraisal', 'monitoring', 'evaluation', 'service delivery', 'client service', 'development plan'], abbreviation: 'PBMED', room: 'Deputy: Room 31, 1st Floor' },
+  { keywords: ['complaint', 'petition', 'disciplinary', 'council', 'civil service council'], abbreviation: 'CSC', room: 'Rooms 24, 44' },
+  { keywords: ['reform', 'anti-corruption', 'nacap', 'right to information', 'rti'], abbreviation: 'RCU', room: '' },
+  { keywords: ['audit', 'fraud', 'internal audit', 'compliance', 'risk'], abbreviation: 'IAU', room: '' },
+];
+
+function suggestDirectorate(purpose: string, directorates: Directorate[]): Directorate | null {
+  if (!purpose || purpose.length < 3) return null;
+  const lower = purpose.toLowerCase();
+
+  for (const route of ROUTING_KEYWORDS) {
+    if (route.keywords.some(kw => lower.includes(kw))) {
+      return directorates.find(d => d.abbreviation === route.abbreviation) ?? null;
+    }
+  }
+  return null;
+}
+
+function PurposeRoutingHint({ purpose, directorates, currentDirectorateId, onAccept }: {
+  purpose: string;
+  directorates: Directorate[];
+  currentDirectorateId: string;
+  onAccept: (id: string) => void;
+}) {
+  const suggestion = suggestDirectorate(purpose, directorates);
+  if (!suggestion) return null;
+
+  const route = ROUTING_KEYWORDS.find(r => r.abbreviation === suggestion.abbreviation);
+  const alreadySelected = currentDirectorateId === suggestion.id;
+
+  if (alreadySelected) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 bg-success/8 border border-success/15 rounded-xl text-[13px] animate-fade-in">
+        <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+        <span className="text-success font-medium">
+          Routing to {suggestion.abbreviation}{route?.room ? ` — ${route.room}` : ''}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-accent/8 border border-accent/15 rounded-xl animate-fade-in">
+      <div className="flex items-center gap-2 text-[13px]">
+        <Building2 className="h-4 w-4 text-accent-warm shrink-0" />
+        <span className="text-foreground">
+          Suggested: <strong>{suggestion.abbreviation}</strong> — {suggestion.name}
+          {route?.room ? <span className="text-muted"> ({route.room})</span> : ''}
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={() => onAccept(suggestion.id)}
+        className="h-7 px-3 text-[12px] font-semibold bg-accent text-white rounded-lg hover:brightness-110 transition-all shrink-0"
+      >
+        Accept
+      </button>
     </div>
   );
 }
