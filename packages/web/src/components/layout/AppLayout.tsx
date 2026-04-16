@@ -8,34 +8,29 @@ import { useSidebarStore } from '@/stores/sidebar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export function AppLayout() {
-  const { isMobileOpen, closeMobile } = useSidebarStore();
-  const location = useLocation();
+  const { isMobileOpen } = useSidebarStore();
 
   useKeyboardShortcuts();
 
-  // Close mobile sidebar on route change
-  useEffect(() => { closeMobile(); }, [location.pathname, closeMobile]);
-
   return (
-    <div className="flex h-screen overflow-hidden relative">
-      {/* Desktop/laptop sidebar — always visible, collapsible (lg+ = 1024px+) */}
+    <div className="flex h-screen overflow-hidden">
+      {/* Desktop (lg+): always visible, collapsible */}
       <div className="hidden lg:block">
         <Sidebar />
       </div>
 
-      {/* Mobile/tablet overlay sidebar (below lg) */}
-      {isMobileOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-40 lg:hidden animate-fade-in" onClick={closeMobile} />
-          <div className="fixed left-0 top-0 bottom-0 z-50 lg:hidden" style={{
-            animation: 'slideInLeft 0.25s ease-out both',
-          }}>
-            <Sidebar forceExpanded />
-          </div>
-        </>
-      )}
+      {/* Tablet/mobile (below lg): sidebar in flow, toggleable via hamburger */}
+      <div
+        className={`lg:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+          isMobileOpen ? 'w-64' : 'w-0'
+        }`}
+      >
+        <div className="w-64 h-full">
+          <Sidebar forceExpanded />
+        </div>
+      </div>
 
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <Header />
         <main className="flex-1 overflow-auto bg-background bg-kente p-4 md:p-6">
           <Outlet />
@@ -43,13 +38,6 @@ export function AppLayout() {
       </div>
       <ChatBubble />
       <Toaster />
-
-      <style>{`
-        @keyframes slideInLeft {
-          from { transform: translateX(-100%); }
-          to { transform: translateX(0); }
-        }
-      `}</style>
     </div>
   );
 }

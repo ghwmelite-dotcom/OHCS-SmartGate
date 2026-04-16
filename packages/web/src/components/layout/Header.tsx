@@ -3,13 +3,14 @@ import { useThemeStore } from '@/stores/theme';
 import { useSidebarStore } from '@/stores/sidebar';
 import { formatDate } from '@/lib/utils';
 import { NotificationBell } from '../NotificationBell';
-import { MapPin, Sun, Moon, Monitor, Menu } from 'lucide-react';
+import { MapPin, Sun, Moon, Monitor, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Header() {
   const user = useAuthStore((s) => s.user);
   const { theme, setTheme } = useThemeStore();
   const toggleMobile = useSidebarStore((s) => s.toggleMobile);
+  const isMobileOpen = useSidebarStore((s) => s.isMobileOpen);
 
   const themeOptions = [
     { value: 'light' as const, icon: Sun, label: 'Light' },
@@ -26,7 +27,7 @@ export function Header() {
           onClick={toggleMobile}
           className="lg:hidden h-9 w-9 rounded-xl flex items-center justify-center text-foreground hover:bg-background transition-all"
         >
-          <Menu className="h-5 w-5" />
+          {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
 
         <div className="hidden md:flex items-center gap-2.5">
