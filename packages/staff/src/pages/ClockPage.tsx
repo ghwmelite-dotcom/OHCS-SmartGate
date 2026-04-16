@@ -21,6 +21,8 @@ interface ClockResult {
   id: string;
   type: string;
   timestamp: string;
+  user_name: string;
+  staff_id: string;
   within_geofence: boolean;
   distance_meters: number;
   streak: number;
@@ -331,8 +333,9 @@ export function ClockPage() {
                   {result.type === 'clock_in' ? 'Clocked In!' : 'Clocked Out!'}
                 </p>
                 <p className="text-[16px] text-foreground font-medium mt-1">
-                  {formatTime(result.timestamp)}
+                  {result.user_name} &middot; {formatTime(result.timestamp)}
                 </p>
+                <p className="text-[13px] text-muted mt-0.5">Staff ID: {result.staff_id}</p>
               </div>
               {photoPreview && (
                 <div className="w-20 h-20 rounded-2xl overflow-hidden mx-auto border border-border">

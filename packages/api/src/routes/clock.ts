@@ -92,13 +92,17 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
 
   // Get updated user for response
   const user = await c.env.DB.prepare(
-    'SELECT current_streak, longest_streak FROM users WHERE id = ?'
-  ).bind(session.userId).first<{ current_streak: number; longest_streak: number }>();
+    'SELECT name, staff_id, current_streak, longest_streak FROM users WHERE id = ?'
+  ).bind(session.userId).first<{ name: string; staff_id: string; current_streak: number; longest_streak: number }>();
+
+  console.log(`[CLOCK] ${user?.name} (${user?.staff_id}) — ${type} at ${new Date().toISOString()}`);
 
   return success(c, {
     id,
     type,
     timestamp: new Date().toISOString(),
+    user_name: user?.name ?? session.name,
+    staff_id: user?.staff_id ?? '',
     within_geofence: withinGeofence,
     distance_meters: Math.round(distance),
     streak: user?.current_streak ?? 0,
@@ -139,13 +143,15 @@ clockRoutes.get('/my-status', async (c) => {
   ).bind(session.userId, today).all();
 
   const user = await c.env.DB.prepare(
-    'SELECT current_streak, longest_streak FROM users WHERE id = ?'
-  ).bind(session.userId).first<{ current_streak: number; longest_streak: number }>();
+    'SELECT name, staff_id, current_streak, longest_streak FROM users WHERE id = ?'
+  ).bind(session.userId).first<{ name: string; staff_id: string; current_streak: number; longest_streak: number }>();
 
   const clockIn = (records.results ?? []).find((r: Record<string, unknown>) => r.type === 'clock_in');
   const clockOut = (records.results ?? []).find((r: Record<string, unknown>) => r.type === 'clock_out');
 
   return success(c, {
+    user_name: user?.name ?? '',
+    staff_id: user?.staff_id ?? '',
     clocked_in: !!clockIn,
     clocked_out: !!clockOut,
     clock_in_time: clockIn ? (clockIn as Record<string, unknown>).timestamp : null,
