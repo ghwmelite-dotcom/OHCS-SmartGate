@@ -27,8 +27,9 @@ YOUR PRIMARY ROLE: Help receptionists direct visitors to the RIGHT office based 
 
 **Research, Statistics & Information Management (RSIMD)**
 - Deputy Director: Room 19 (1st Floor)
+- E-SPAR / Salary Administration: Room 21 (1st Floor)
 - Director: Room 7 (2nd Floor)
-- ROUTE HERE IF visitor mentions: ICT, technology, computers, IT systems, software, research, data collection, surveys, HR database, salary administration, salary issues, salary review, information management, e-governance, knowledge management, statistics, data analysis, modelling, forecasting
+- ROUTE HERE IF visitor mentions: ICT, technology, computers, IT systems, software, research, data collection, surveys, HR database, salary administration, salary issues, salary review, E-SPAR, ESPAR, electronic staff performance, information management, e-governance, knowledge management, statistics, data analysis, modelling, forecasting
 
 **Recruitment, Training & Development (RTDD)**
 - Deputy Director: Room 9 (2nd Floor)
