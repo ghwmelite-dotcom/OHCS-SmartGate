@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
 import type { Env, SessionData } from '../types';
 import { LoginSchema, VerifyOtpSchema } from '../lib/validation';
-import { createOtp, verifyOtp, verifyPin, createSession, deleteSession, getSession } from '../services/auth';
+import { createOtp, verifyOtp, verifyPin, hashPin, createSession, deleteSession, getSession } from '../services/auth';
 import { success, error } from '../lib/response';
 import { z } from 'zod';
 
@@ -117,6 +117,35 @@ authRoutes.post('/logout', async (c) => {
   }
   deleteCookie(c, 'session_id', { path: '/' });
   return success(c, { message: 'Logged out' });
+});
+
+// Change PIN
+const changePinSchema = z.object({
+  current_pin: z.string().length(4).regex(/^\d{4}$/),
+  new_pin: z.string().length(4).regex(/^\d{4}$/),
+});
+
+authRoutes.post('/change-pin', zValidator('json', changePinSchema), async (c) => {
+  const sessionId = getCookie(c, 'session_id');
+  if (!sessionId) return error(c, 'UNAUTHORIZED', 'Not authenticated', 401);
+  const session = await getSession(sessionId, c.env);
+  if (!session) return error(c, 'UNAUTHORIZED', 'Session expired', 401);
+
+  const { current_pin, new_pin } = c.req.valid('json');
+
+  const user = await c.env.DB.prepare('SELECT pin_hash FROM users WHERE id = ?')
+    .bind(session.userId).first<{ pin_hash: string | null }>();
+
+  if (!user?.pin_hash) return error(c, 'NO_PIN', 'No PIN set for this account', 400);
+
+  const valid = await verifyPin(current_pin, user.pin_hash);
+  if (!valid) return error(c, 'WRONG_PIN', 'Current PIN is incorrect', 401);
+
+  const newHash = await hashPin(new_pin);
+  await c.env.DB.prepare('UPDATE users SET pin_hash = ? WHERE id = ?')
+    .bind(newHash, session.userId).run();
+
+  return success(c, { message: 'PIN changed successfully' });
 });
 
 authRoutes.get('/me', async (c) => {

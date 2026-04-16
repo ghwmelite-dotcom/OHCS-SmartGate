@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { PinChangeButton } from '@/hooks/usePinChange';
 import { api } from '@/lib/api';
 import { cn, formatTime } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
@@ -185,7 +186,10 @@ export function ClockPage() {
               <p className="text-[10px] text-[#D4A017]/70 tracking-wide uppercase">OHCS Clock System</p>
             </div>
           </div>
-          <button onClick={logout} className="text-[12px] text-white/50 hover:text-white/80 transition-colors">Sign Out</button>
+          <div className="flex items-center gap-3">
+            <PinChangeButton />
+            <button onClick={logout} className="text-[12px] text-white/50 hover:text-white/80 transition-colors">Sign Out</button>
+          </div>
         </div>
       </div>
 
