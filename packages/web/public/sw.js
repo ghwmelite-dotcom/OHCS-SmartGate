@@ -1,61 +1,49 @@
-const CACHE_NAME = 'smartgate-v2';
+const CACHE_NAME = 'smartgate-v3';
 
-// Install — cache essential assets
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll([
-        '/',
-        '/manifest.json',
-        '/ohcs-logo.jpg',
-        '/icons/icon-192.png',
-        '/icons/icon-512.png',
-      ])
-    )
-  );
+// Install — immediately take over
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
-// Activate — clean old caches
+// Activate — claim all clients immediately + clear old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    Promise.all([
+      self.clients.claim(),
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      ),
+    ])
   );
-  self.clients.claim();
 });
 
-// Fetch strategy
+// Fetch — network first, cache fallback
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  const url = new URL(request.url);
 
-  // Skip non-GET requests
+  // Skip non-GET
   if (request.method !== 'GET') return;
 
-  // API calls and external requests — network only
+  // Skip API calls entirely — always network
+  const url = new URL(request.url);
   if (url.pathname.startsWith('/api') || url.hostname !== self.location.hostname) return;
 
-  // For navigation requests (HTML pages) — network first, fallback to cache
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() => caches.match('/'))
-    );
-    return;
-  }
-
-  // Static assets — cache first, then network
+  // Everything else: try network first, cache as fallback
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
+    fetch(request)
+      .then((response) => {
+        // Cache successful responses for offline fallback
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return response;
-      });
-    }).catch(() => caches.match('/'))
+      })
+      .catch(() => {
+        // Network failed — serve from cache
+        return caches.match(request).then((cached) => {
+          return cached || caches.match('/');
+        });
+      })
   );
 });
