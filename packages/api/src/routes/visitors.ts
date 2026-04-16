@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, SessionData } from '../types';
 import { CreateVisitorSchema, UpdateVisitorSchema } from '../lib/validation';
-import { success, created, notFound } from '../lib/response';
+import { success, created, notFound, error } from '../lib/response';
 import { z } from 'zod';
 
 export const visitorRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
@@ -100,4 +100,25 @@ visitorRoutes.put('/:id', zValidator('json', UpdateVisitorSchema), async (c) => 
 
   const visitor = await c.env.DB.prepare('SELECT * FROM visitors WHERE id = ?').bind(id).first();
   return success(c, visitor);
+});
+
+// Delete visitor and their visits (superadmin only)
+visitorRoutes.delete('/:id', async (c) => {
+  const session = c.get('session');
+  if (session.role !== 'superadmin') {
+    return error(c, 'FORBIDDEN', 'Superadmin access required', 403);
+  }
+
+  const id = c.req.param('id');
+  const existing = await c.env.DB.prepare('SELECT id FROM visitors WHERE id = ?').bind(id).first();
+  if (!existing) return notFound(c, 'Visitor');
+
+  // Delete visits first (foreign key), then notifications, then visitor
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM notifications WHERE visit_id IN (SELECT id FROM visits WHERE visitor_id = ?)').bind(id),
+    c.env.DB.prepare('DELETE FROM visits WHERE visitor_id = ?').bind(id),
+    c.env.DB.prepare('DELETE FROM visitors WHERE id = ?').bind(id),
+  ]);
+
+  return success(c, { message: 'Visitor and all related visits deleted' });
 });

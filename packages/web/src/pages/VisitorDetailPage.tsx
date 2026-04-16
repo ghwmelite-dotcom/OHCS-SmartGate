@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { api, type VisitorDetail, type Visit } from '@/lib/api';
 import { cn, getInitials, formatDate, formatTime, formatDateTime } from '@/lib/utils';
 import { VISIT_STATUS, ID_TYPES } from '@/lib/constants';
+import { useAuthStore } from '@/stores/auth';
+import { toast } from '@/stores/toast';
 import {
   ChevronLeft,
   User,
@@ -18,6 +21,20 @@ import {
 export function VisitorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const isSuperadmin = user?.role === 'superadmin';
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/visitors/${id}`),
+    onSuccess: () => {
+      toast.success('Visitor deleted');
+      navigate('/visitors');
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+    },
+  });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['visitor', id],
@@ -93,13 +110,48 @@ export function VisitorDetailPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => navigate('/check-in')}
-            className="h-9 px-4 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-light transition-colors shrink-0"
-          >
-            Check In
-          </button>
+          <div className="flex flex-col gap-2 shrink-0">
+            <button
+              onClick={() => navigate('/check-in')}
+              className="h-9 px-4 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-light transition-colors"
+            >
+              Check In
+            </button>
+            {isSuperadmin && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="h-9 px-4 text-[13px] font-medium text-danger border border-danger/20 rounded-xl hover:bg-danger/5 transition-colors"
+              >
+                Delete
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Delete confirmation */}
+        {showDeleteConfirm && (
+          <div className="mt-4 p-4 bg-danger-light border border-danger/20 rounded-xl animate-fade-in">
+            <p className="text-[14px] font-medium text-danger">
+              Delete {visitor.first_name} {visitor.last_name} and all their visit records?
+            </p>
+            <p className="text-[13px] text-muted mt-1">This action cannot be undone.</p>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="h-9 px-4 bg-danger text-white text-[13px] font-semibold rounded-xl hover:brightness-110 disabled:opacity-50 transition-all"
+              >
+                {deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="h-9 px-4 text-[13px] font-medium text-muted border border-border rounded-xl hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Visit history */}
