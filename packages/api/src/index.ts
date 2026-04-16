@@ -13,6 +13,8 @@ import { assistantRoutes } from './routes/assistant';
 import { userRoutes } from './routes/users';
 import { analyticsRoutes } from './routes/analytics';
 import { reportRoutes } from './routes/reports';
+import { adminDirectorateRoutes } from './routes/admin-directorates';
+import { photoRoutes } from './routes/photos';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 
@@ -43,6 +45,15 @@ app.route('/api/auth', authRoutes);
 app.route('/api/badges', badgeRoutes);
 app.get('/badge/:code', serveBadgePage);
 app.post('/api/telegram/webhook', telegramWebhook);
+app.get('/api/photos/visitors/:id', async (c) => {
+  const visitorId = c.req.param('id');
+  const object = await c.env.STORAGE.get(`photos/visitors/${visitorId}.jpg`);
+  if (!object) return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Photo not found' } }, 404);
+  const headers = new Headers();
+  headers.set('Content-Type', 'image/jpeg');
+  headers.set('Cache-Control', 'public, max-age=3600');
+  return new Response(object.body, { headers });
+});
 
 // Protected routes
 app.use('/api/*', authMiddleware);
@@ -55,6 +66,8 @@ app.route('/api/assistant', assistantRoutes);
 app.route('/api/users', userRoutes);
 app.route('/api/analytics', analyticsRoutes);
 app.route('/api/reports', reportRoutes);
+app.route('/api/admin/directorates', adminDirectorateRoutes);
+app.route('/api/photos', photoRoutes);
 app.post('/api/telegram/link', telegramLinkRoute);
 
 export default app;

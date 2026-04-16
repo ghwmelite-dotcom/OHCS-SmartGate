@@ -54,6 +54,52 @@ const editUserSchema = z.object({
 type EditUserForm = z.infer<typeof editUserSchema>;
 
 export function AdminPage() {
+  const [activeTab, setActiveTab] = useState<'users' | 'org'>('users');
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between animate-fade-in-up">
+        <div>
+          <h1 className="text-[28px] font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+            Administration
+          </h1>
+          <p className="text-[15px] text-muted mt-0.5">Manage users, directorates, and officers</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-surface rounded-xl border border-border p-1 w-fit animate-fade-in-up stagger-1">
+        {([
+          { value: 'users' as const, label: 'Users' },
+          { value: 'org' as const, label: 'Org Entities & Officers' },
+        ]).map(tab => (
+          <button
+            key={tab.value}
+            onClick={() => setActiveTab(tab.value)}
+            className={cn(
+              'h-9 px-5 rounded-lg text-[14px] font-medium transition-all',
+              activeTab === tab.value
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-muted hover:text-foreground'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'users' ? <UsersTab /> : <DirectoratesTabWrapper />}
+    </div>
+  );
+}
+
+function DirectoratesTabWrapper() {
+  // Lazy import to keep AdminPage file focused
+  const { DirectoratesTab } = require('@/components/admin/DirectoratesTab');
+  return <DirectoratesTab />;
+}
+
+function UsersTab() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
@@ -75,14 +121,8 @@ export function AdminPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between animate-fade-in-up">
-        <div>
-          <h1 className="text-[28px] font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-            Administration
-          </h1>
-          <p className="text-[15px] text-muted mt-0.5">Manage users, roles, and system access</p>
-        </div>
+      {/* Add User button */}
+      <div className="flex justify-end">
         <button
           onClick={() => { setShowCreate(true); setEditingUser(null); }}
           className="inline-flex items-center gap-2 h-11 px-5 bg-primary text-white text-[14px] font-semibold rounded-xl hover:bg-primary-light transition-all shadow-lg shadow-primary/15 active:scale-[0.98]"

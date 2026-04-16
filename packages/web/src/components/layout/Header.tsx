@@ -1,10 +1,19 @@
 import { useAuthStore } from '@/stores/auth';
+import { useThemeStore } from '@/stores/theme';
 import { formatDate } from '@/lib/utils';
 import { NotificationBell } from '../NotificationBell';
-import { MapPin } from 'lucide-react';
+import { MapPin, Sun, Moon, Monitor } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function Header() {
   const user = useAuthStore((s) => s.user);
+  const { theme, setTheme } = useThemeStore();
+
+  const themeOptions = [
+    { value: 'light' as const, icon: Sun, label: 'Light' },
+    { value: 'dark' as const, icon: Moon, label: 'Dark' },
+    { value: 'system' as const, icon: Monitor, label: 'System' },
+  ];
 
   return (
     <header className="h-[60px] bg-surface-warm border-b border-border px-6 flex items-center justify-between shrink-0 relative">
@@ -23,8 +32,27 @@ export function Header() {
         </div>
       </div>
 
-      {/* Right — notifications + user */}
-      <div className="flex items-center gap-4">
+      {/* Right — theme + notifications + user */}
+      <div className="flex items-center gap-3">
+        {/* Theme toggle */}
+        <div className="flex items-center bg-background rounded-lg border border-border p-0.5">
+          {themeOptions.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setTheme(opt.value)}
+              className={cn(
+                'h-7 w-7 rounded-md flex items-center justify-center transition-all',
+                theme === opt.value
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-muted hover:text-foreground'
+              )}
+              title={opt.label}
+            >
+              <opt.icon className="h-3.5 w-3.5" />
+            </button>
+          ))}
+        </div>
+
         <NotificationBell />
 
         <div className="h-8 w-[1px] bg-border" />

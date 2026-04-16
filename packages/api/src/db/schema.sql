@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS visitors (
     organisation  TEXT,
     id_type       TEXT CHECK(id_type IN ('ghana_card','passport','drivers_license','staff_id','other')),
     id_number     TEXT,
+    photo_url     TEXT,
     total_visits  INTEGER NOT NULL DEFAULT 0,
     last_visit_at TEXT,
     created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

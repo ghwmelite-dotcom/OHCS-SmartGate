@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { api, type Visitor, type Visit, type Officer, type Directorate } from '@/lib/api';
 import { cn, getInitials, formatDate } from '@/lib/utils';
 import { ID_TYPES } from '@/lib/constants';
+import { PhotoCapture } from '@/components/PhotoCapture';
 import {
   Search,
   UserPlus,
@@ -49,7 +50,7 @@ const checkInSchema = z.object({
 type CheckInForm = z.infer<typeof checkInSchema>;
 
 /* ---- Steps ---- */
-type Step = 'search' | 'new-visitor' | 'check-in' | 'success';
+type Step = 'search' | 'new-visitor' | 'photo' | 'check-in' | 'success';
 
 export function CheckInPage() {
   const navigate = useNavigate();
@@ -96,7 +97,7 @@ export function CheckInPage() {
       const visitor = res.data;
       if (visitor) {
         setSelectedVisitor(visitor);
-        setStep('check-in');
+        setStep('photo');
         queryClient.invalidateQueries({ queryKey: ['visitors'] });
       }
     },
@@ -133,6 +134,24 @@ export function CheckInPage() {
   /* ---- Select existing visitor ---- */
   function selectVisitor(visitor: Visitor) {
     setSelectedVisitor(visitor);
+    setStep('photo');
+  }
+
+  /* ---- Photo upload ---- */
+  async function handlePhotoCapture(blob: Blob) {
+    if (!selectedVisitor) return;
+    try {
+      const arrayBuffer = await blob.arrayBuffer();
+      await fetch(`${import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : ''}/api/photos/visitors/${selectedVisitor.id}/photo`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'image/jpeg' },
+        body: arrayBuffer,
+      });
+      queryClient.invalidateQueries({ queryKey: ['visitors'] });
+    } catch {
+      // Photo upload failed silently — continue to check-in
+    }
     setStep('check-in');
   }
 
@@ -340,6 +359,28 @@ export function CheckInPage() {
         </div>
       )}
 
+      {/* STEP 2b: Photo capture */}
+      {step === 'photo' && selectedVisitor && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+              Visitor Photo
+            </h2>
+            <p className="text-[14px] text-muted mt-0.5">
+              Capture a photo for {selectedVisitor.first_name} {selectedVisitor.last_name}
+            </p>
+          </div>
+
+          <div className="bg-surface rounded-2xl border border-border shadow-sm p-6">
+            <PhotoCapture
+              existingPhotoUrl={(selectedVisitor as Visitor & { photo_url?: string }).photo_url || null}
+              onCapture={handlePhotoCapture}
+              onSkip={() => setStep('check-in')}
+            />
+          </div>
+        </div>
+      )}
+
       {/* STEP 3: Check-in form */}
       {step === 'check-in' && selectedVisitor && (
         <div className="space-y-4">
@@ -514,7 +555,8 @@ function BadgeQRCode({ badgeCode }: { badgeCode: string }) {
 
 function StepIndicator({ current }: { current: Step }) {
   const steps: { key: Step; label: string }[] = [
-    { key: 'search', label: 'Find Visitor' },
+    { key: 'search', label: 'Find' },
+    { key: 'photo', label: 'Photo' },
     { key: 'check-in', label: 'Check In' },
     { key: 'success', label: 'Done' },
   ];
