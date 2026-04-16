@@ -25,6 +25,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<ApiR
   const json = await res.json() as ApiResponse<T>;
 
   if (!res.ok || json.error) {
+    // Session expired — redirect to login
+    if (res.status === 401 && !path.startsWith('/auth/')) {
+      window.location.href = '/login';
+      throw new ApiError('SESSION_EXPIRED', 'Session expired. Please sign in again.', 401);
+    }
     throw new ApiError(
       json.error?.code ?? 'UNKNOWN',
       json.error?.message ?? 'An error occurred',
@@ -53,6 +58,7 @@ export interface Visitor {
   organisation: string | null;
   id_type: string | null;
   id_number: string | null;
+  photo_url: string | null;
   total_visits: number;
   last_visit_at: string | null;
   created_at: string;

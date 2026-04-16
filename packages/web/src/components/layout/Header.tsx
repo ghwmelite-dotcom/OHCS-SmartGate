@@ -1,13 +1,15 @@
 import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/theme';
+import { useSidebarStore } from '@/stores/sidebar';
 import { formatDate } from '@/lib/utils';
 import { NotificationBell } from '../NotificationBell';
-import { MapPin, Sun, Moon, Monitor } from 'lucide-react';
+import { MapPin, Sun, Moon, Monitor, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Header() {
   const user = useAuthStore((s) => s.user);
   const { theme, setTheme } = useThemeStore();
+  const toggleSidebar = useSidebarStore((s) => s.toggle);
 
   const themeOptions = [
     { value: 'light' as const, icon: Sun, label: 'Light' },
@@ -16,24 +18,34 @@ export function Header() {
   ];
 
   return (
-    <header className="h-[60px] bg-surface-warm border-b border-border px-6 flex items-center justify-between shrink-0 relative">
-      {/* Left — location & date */}
-      <div className="flex items-center gap-2.5">
-        <div className="flex items-center gap-1.5 text-accent">
-          <MapPin className="h-3.5 w-3.5" />
-        </div>
-        <div>
-          <p className="text-[13px] font-medium text-foreground/80 tracking-wide">
-            Office of the Head of Civil Service
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            Accra, Ghana &middot; {formatDate(new Date().toISOString())}
-          </p>
+    <header className="h-[60px] bg-surface-warm border-b border-border px-4 md:px-6 flex items-center justify-between shrink-0 relative">
+      {/* Left — hamburger + location */}
+      <div className="flex items-center gap-3">
+        {/* Hamburger — tablet/mobile only */}
+        <button
+          onClick={toggleSidebar}
+          className="xl:hidden h-9 w-9 rounded-xl flex items-center justify-center text-foreground hover:bg-background transition-all"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
+        <div className="hidden sm:flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 text-accent">
+            <MapPin className="h-3.5 w-3.5" />
+          </div>
+          <div>
+            <p className="text-[13px] font-medium text-foreground/80 tracking-wide">
+              Office of the Head of Civil Service
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Accra, Ghana &middot; {formatDate(new Date().toISOString())}
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Right — theme + notifications + user */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         {/* Theme toggle */}
         <div className="flex items-center bg-background rounded-lg border border-border p-0.5">
           {themeOptions.map(opt => (
@@ -55,16 +67,16 @@ export function Header() {
 
         <NotificationBell />
 
-        <div className="h-8 w-[1px] bg-border" />
+        <div className="hidden md:block h-8 w-[1px] bg-border" />
 
-        <div className="flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-3">
           <div className="text-right">
             <p className="text-sm font-semibold text-foreground">{user?.name}</p>
             <p className="text-[11px] text-accent font-medium uppercase tracking-wide">{user?.role}</p>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center text-sm font-bold shadow-sm">
-            {user?.name?.charAt(0) ?? '?'}
-          </div>
+        </div>
+        <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center text-sm font-bold shadow-sm">
+          {user?.name?.charAt(0) ?? '?'}
         </div>
       </div>
     </header>

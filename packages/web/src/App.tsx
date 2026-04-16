@@ -31,9 +31,32 @@ export function App() {
   useEffect(() => { checkSession(); }, [checkSession]);
 
   if (isLoading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-muted">Loading...</div>
-    </div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{
+        background: 'linear-gradient(165deg, #1A4D2E 0%, #0F2E1B 50%, #071A0F 100%)',
+      }}>
+        <div className="absolute inset-0 opacity-[0.04]" style={{
+          backgroundImage: `repeating-linear-gradient(45deg, #D4A017 0px, #D4A017 1px, transparent 1px, transparent 16px),
+            repeating-linear-gradient(-45deg, #D4A017 0px, #D4A017 1px, transparent 1px, transparent 16px)`,
+        }} />
+        <div className="relative flex flex-col items-center animate-fade-in">
+          <div className="w-20 h-20 rounded-2xl overflow-hidden ring-2 ring-[#D4A017]/20 shadow-2xl shadow-black/30 mb-5">
+            <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
+          </div>
+          <h1 className="text-xl font-bold text-white tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+            SmartGate
+          </h1>
+          <p className="text-[10px] tracking-[0.2em] uppercase text-[#D4A017]/70 font-medium mt-1">
+            Visitor Management System
+          </p>
+          <div className="mt-6 h-1 w-16 rounded-full overflow-hidden bg-white/10">
+            <div className="h-full w-full rounded-full animate-pulse" style={{
+              background: 'linear-gradient(90deg, #D4A017, #F5D76E, #D4A017)',
+            }} />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

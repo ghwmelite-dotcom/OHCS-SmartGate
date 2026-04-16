@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api, type Visit } from '@/lib/api';
-import { cn, formatTime, timeAgo, getInitials } from '@/lib/utils';
+import { cn, formatTime, timeAgo } from '@/lib/utils';
+import { VisitorAvatar } from '@/components/VisitorAvatar';
+import { toast } from '@/stores/toast';
+import { playCheckOutChime } from '@/lib/sounds';
 import {
   Users,
   LogIn,
@@ -38,6 +41,8 @@ export function DashboardPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['visits'] });
       setCheckingOut(null);
+      toast.success('Visitor checked out successfully');
+      playCheckOutChime();
     },
   });
 
@@ -180,9 +185,11 @@ export function DashboardPage() {
                 )}
               >
                 {/* Avatar */}
-                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0">
-                  {getInitials(visit.first_name ?? '', visit.last_name ?? '')}
-                </div>
+                <VisitorAvatar
+                  firstName={visit.first_name ?? ''}
+                  lastName={visit.last_name ?? ''}
+                  photoUrl={(visit as Visit & { photo_url?: string }).photo_url}
+                />
 
                 {/* Visitor info */}
                 <div className="flex-1 min-w-0">

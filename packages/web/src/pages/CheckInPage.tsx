@@ -9,6 +9,8 @@ import { api, type Visitor, type Visit, type Officer, type Directorate } from '@
 import { cn, getInitials, formatDate } from '@/lib/utils';
 import { ID_TYPES } from '@/lib/constants';
 import { PhotoCapture } from '@/components/PhotoCapture';
+import { toast } from '@/stores/toast';
+import { playCheckInChime } from '@/lib/sounds';
 import {
   Search,
   UserPlus,
@@ -128,6 +130,8 @@ export function CheckInPage() {
       setCreatedVisit(res.data ?? null);
       setStep('success');
       queryClient.invalidateQueries({ queryKey: ['visits'] });
+      toast.success('Visitor checked in successfully');
+      playCheckInChime();
     },
   });
 

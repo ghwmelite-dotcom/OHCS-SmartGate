@@ -10,6 +10,7 @@ interface BadgeData {
   status: string;
   visitor_name: string;
   organisation: string | null;
+  photo_url: string | null;
   host_name: string | null;
   directorate: string | null;
   directorate_abbr: string | null;
@@ -21,7 +22,7 @@ interface BadgeData {
 
 const BADGE_QUERY = `SELECT v.badge_code, v.status, v.check_in_at, v.check_out_at,
        vis.first_name || ' ' || vis.last_name as visitor_name,
-       vis.organisation,
+       vis.organisation, vis.photo_url,
        o.name as host_name,
        d.name as directorate, d.abbreviation as directorate_abbr,
        d.floor, d.wing
@@ -142,6 +143,7 @@ export async function serveBadgePage(c: Context<{ Bindings: Env }>) {
       ${isActive ? '\u25CF Active Visitor' : '\u25CB Visit Ended'}
     </div>
     <div class="content">
+      ${visit.photo_url ? `<div style="width:80px;height:80px;border-radius:12px;overflow:hidden;margin:0 auto 12px;border:2px solid #E8DFC9"><img src="${escapeHtml(visit.photo_url)}" style="width:100%;height:100%;object-fit:cover" alt=""></div>` : ''}
       <div class="visitor-name">${escapeHtml(visit.visitor_name)}</div>
       ${visit.organisation ? `<div class="organisation">${escapeHtml(visit.organisation)}</div>` : ''}
       <div class="details">
