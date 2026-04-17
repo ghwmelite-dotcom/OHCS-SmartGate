@@ -32,6 +32,7 @@ export const CheckInSchema = z.object({
   purpose_raw: z.string().max(500).optional(),
   purpose_category: z.string().optional(),
   notes: z.string().max(500).optional(),
+  idempotency_key: z.string().min(1).max(100).optional(),
 });
 
 export const LoginSchema = z.object({

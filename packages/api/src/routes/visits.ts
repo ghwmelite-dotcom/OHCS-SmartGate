@@ -103,6 +103,24 @@ visitRoutes.post('/check-in', zValidator('json', CheckInSchema), async (c) => {
   const visitor = await c.env.DB.prepare('SELECT id FROM visitors WHERE id = ?').bind(body.visitor_id).first();
   if (!visitor) return notFound(c, 'Visitor');
 
+  if (body.idempotency_key) {
+    const existing = await c.env.DB.prepare(
+      "SELECT id, badge_code FROM visits WHERE idempotency_key = ? LIMIT 1"
+    ).bind(body.idempotency_key).first<{ id: string; badge_code: string }>();
+    if (existing) {
+      const dup = await c.env.DB.prepare(
+        `SELECT v.*, vis.first_name, vis.last_name, vis.organisation,
+                COALESCE(o.name, v.host_name_manual) as host_name, d.abbreviation as directorate_abbr
+         FROM visits v
+         JOIN visitors vis ON v.visitor_id = vis.id
+         LEFT JOIN officers o ON v.host_officer_id = o.id
+         LEFT JOIN directorates d ON v.directorate_id = d.id
+         WHERE v.id = ?`
+      ).bind(existing.id).first();
+      return created(c, dup);
+    }
+  }
+
   const visitId = crypto.randomUUID().replace(/-/g, '');
   const randomSuffix = Array.from(crypto.getRandomValues(new Uint8Array(2)))
     .map(b => b.toString(36)).join('').slice(0, 4).toUpperCase();
@@ -110,10 +128,10 @@ visitRoutes.post('/check-in', zValidator('json', CheckInSchema), async (c) => {
 
   await c.env.DB.batch([
     c.env.DB.prepare(
-      `INSERT INTO visits (id, visitor_id, host_officer_id, host_name_manual, directorate_id, purpose_raw, purpose_category, badge_code, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'checked_in', ?)`
+      `INSERT INTO visits (id, visitor_id, host_officer_id, host_name_manual, directorate_id, purpose_raw, purpose_category, badge_code, status, created_by, idempotency_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'checked_in', ?, ?)`
     ).bind(visitId, body.visitor_id, body.host_officer_id || null, body.host_name_manual || null,
-           body.directorate_id || null, body.purpose_raw || null, body.purpose_category || null, badgeCode, session.userId),
+           body.directorate_id || null, body.purpose_raw || null, body.purpose_category || null, badgeCode, session.userId, body.idempotency_key ?? null),
 
     c.env.DB.prepare(
       `UPDATE visitors SET total_visits = total_visits + 1, last_visit_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),

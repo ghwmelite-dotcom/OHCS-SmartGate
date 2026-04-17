@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS visits (
     status           TEXT NOT NULL DEFAULT 'checked_in' CHECK(status IN ('checked_in','checked_out','cancelled')),
     notes            TEXT,
     created_by       TEXT REFERENCES users(id),
+    idempotency_key  TEXT,
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_visits_visitor ON visits(visitor_id);
