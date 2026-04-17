@@ -1,49 +1,42 @@
-const CACHE_NAME = 'smartgate-v3';
+const CACHE_NAME = 'smartgate-v4';
+const OFFLINE_URL = '/offline.html';
 
-// Install — immediately take over
-self.addEventListener('install', () => {
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE_NAME).then(c => c.add(OFFLINE_URL)));
   self.skipWaiting();
 });
 
-// Activate — claim all clients immediately + clear old caches
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    Promise.all([
-      self.clients.claim(),
-      caches.keys().then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-      ),
-    ])
-  );
+self.addEventListener('activate', (e) => {
+  e.waitUntil(Promise.all([
+    self.clients.claim(),
+    caches.keys().then(k => Promise.all(k.filter(n => n !== CACHE_NAME).map(n => caches.delete(n)))),
+  ]));
 });
 
-// Fetch — network first, cache fallback
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-
-  // Skip non-GET
-  if (request.method !== 'GET') return;
-
-  // Skip API calls entirely — always network
-  const url = new URL(request.url);
+self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
   if (url.pathname.startsWith('/api') || url.hostname !== self.location.hostname) return;
 
-  // Everything else: try network first, cache as fallback
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // Cache successful responses for offline fallback
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+  e.respondWith(
+    fetch(e.request)
+      .then(r => {
+        if (r.ok) {
+          const c = r.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, c));
         }
-        return response;
+        return r;
       })
-      .catch(() => {
-        // Network failed — serve from cache
-        return caches.match(request).then((cached) => {
-          return cached || caches.match('/');
-        });
+      .catch(async () => {
+        const cached = await caches.match(e.request);
+        if (cached) return cached;
+        if (e.request.mode === 'navigate') {
+          const shell = await caches.match('/');
+          if (shell) return shell;
+          const offline = await caches.match(OFFLINE_URL);
+          if (offline) return offline;
+        }
+        return new Response('', { status: 504 });
       })
   );
 });

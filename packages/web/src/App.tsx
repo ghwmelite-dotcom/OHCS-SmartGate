@@ -14,6 +14,7 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { useAuthStore } from './stores/auth';
+import { OfflineBanner } from './components/OfflineBanner';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -146,6 +147,7 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <OfflineBanner />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
