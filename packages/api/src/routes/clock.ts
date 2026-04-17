@@ -6,10 +6,10 @@ import { success, error } from '../lib/response';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
-// OHCS Building geofence — approximate location in Accra
+// OHCS Building geofence — exact location (Office of The Head of Civil Service, Accra)
 const GEOFENCE = {
-  lat: 5.5560,
-  lng: -0.1969,
+  lat: 5.5526925,
+  lng: -0.1974803,
   radiusMeters: 150,
 };
 

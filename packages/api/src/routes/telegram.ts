@@ -15,15 +15,34 @@ export async function telegramWebhook(c: Context<{ Bindings: Env }>) {
 
   if (!chatId || !text) return c.json({ ok: true });
 
+  const appUrl = c.env.ENVIRONMENT === 'production'
+    ? 'https://ohcs-smartgate.pages.dev'
+    : 'http://localhost:5173';
+
   if (text === '/start') {
     const code = await generateLinkCode(String(chatId), c.env);
-    const appUrl = c.env.ENVIRONMENT === 'production'
-      ? 'https://smartgate.ohcs.gov.gh'
-      : 'http://localhost:5173';
-
     await sendTelegramMessage({
       chatId: String(chatId),
-      text: `Welcome to <b>OHCS SmartGate</b>!\n\nTo receive visitor notifications, link your account:\n\n<a href="${appUrl}/link-telegram?code=${code}">Click here to link your account</a>\n\nThis link expires in 10 minutes.`,
+      text: `Welcome to <b>OHCS SmartGate</b>!\n\nTo receive visitor notifications, link your account:\n\n<a href="${appUrl}/link-telegram?code=${code}">Click here to link your account</a>\n\nThis link expires in 10 minutes.\n\nCommands:\n/start \u2014 Link your officer account\n/admin \u2014 Subscribe to daily attendance summaries`,
+      token: c.env.TELEGRAM_BOT_TOKEN,
+    });
+  }
+
+  if (text === '/admin') {
+    // Store this chat ID for daily summaries
+    await c.env.KV.put('telegram-admin-chat-id', String(chatId));
+    await sendTelegramMessage({
+      chatId: String(chatId),
+      text: `\u2705 <b>Admin notifications enabled!</b>\n\nYou will receive:\n\u2022 Daily attendance summary at 9:00 AM (Mon\u2013Fri)\n\u2022 Visitor arrival alerts\n\nTo stop, send /stop`,
+      token: c.env.TELEGRAM_BOT_TOKEN,
+    });
+  }
+
+  if (text === '/stop') {
+    await c.env.KV.delete('telegram-admin-chat-id');
+    await sendTelegramMessage({
+      chatId: String(chatId),
+      text: `Admin notifications disabled.`,
       token: c.env.TELEGRAM_BOT_TOKEN,
     });
   }

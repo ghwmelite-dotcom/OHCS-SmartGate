@@ -18,6 +18,7 @@ import { photoRoutes } from './routes/photos';
 import { bulkImportRoutes } from './routes/bulk-import';
 import { clockRoutes } from './routes/clock';
 import { attendanceRoutes } from './routes/attendance';
+import { sendDailySummary as sendDailySummaryFn } from './services/daily-summary';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 
@@ -86,4 +87,19 @@ app.route('/api/attendance', attendanceRoutes);
 app.route('/api/photos', photoRoutes);
 app.post('/api/telegram/link', telegramLinkRoute);
 
-export default app;
+// Manual trigger for daily summary (superadmin only)
+app.post('/api/admin/send-daily-summary', async (c) => {
+  const session = c.get('session');
+  if (session.role !== 'superadmin') return c.json({ error: 'Forbidden' }, 403);
+  await sendDailySummaryFn(c.env);
+  return c.json({ data: { message: 'Daily summary sent' }, error: null });
+});
+
+// Cron trigger handler for daily attendance summary
+
+export default {
+  fetch: app.fetch,
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
+    await sendDailySummaryFn(env);
+  },
+};
