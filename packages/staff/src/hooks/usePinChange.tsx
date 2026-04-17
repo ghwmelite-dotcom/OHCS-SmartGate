@@ -15,7 +15,7 @@ export function PinChangeButton() {
   );
 }
 
-function PinChangeModal({ onClose }: { onClose: () => void }) {
+export function PinChangeModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -34,6 +34,7 @@ function PinChangeModal({ onClose }: { onClose: () => void }) {
     try {
       await api.post('/auth/change-pin', { current_pin: currentPin, new_pin: newPin });
       setStatus('success');
+      onSuccess?.();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to change PIN');
       setStatus('error');
