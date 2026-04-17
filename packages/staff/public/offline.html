@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline — Staff Attendance</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(165deg, #1A4D2E 0%, #0F2E1B 50%, #071A0F 100%);
+      font-family: system-ui, -apple-system, sans-serif; color: white; padding: 1rem; }
+    .card { max-width: 28rem; text-align: center; }
+    .icon { width: 72px; height: 72px; margin: 0 auto 1.5rem; border-radius: 1rem;
+      background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; }
+    h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.75rem; }
+    p { font-size: 0.95rem; line-height: 1.6; opacity: 0.85; margin: 0 0 1.5rem; }
+    button { background: #D4A017; color: #1A4D2E; border: none; padding: 0.75rem 1.5rem;
+      border-radius: 0.75rem; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M1 1l22 22"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><line x1="12" y1="20" x2="12.01" y2="20"/>
+      </svg>
+    </div>
+    <h1>You're offline</h1>
+    <p>Your connection dropped. Reconnect to continue — any clock actions you took offline will sync automatically.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>
