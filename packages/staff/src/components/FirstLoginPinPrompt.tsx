@@ -9,6 +9,7 @@ export function FirstLoginPinPrompt() {
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [keepStatus, setKeepStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [keepError, setKeepError] = useState('');
+  const [pinWasChanged, setPinWasChanged] = useState(false);
 
   async function handleKeep() {
     setKeepStatus('loading');
@@ -25,9 +26,14 @@ export function FirstLoginPinPrompt() {
   if (showChangeModal) {
     return (
       <PinChangeModal
-        onClose={() => setShowChangeModal(false)}
+        onClose={() => {
+          setShowChangeModal(false);
+          if (pinWasChanged) {
+            markPinAcknowledged();
+          }
+        }}
         onSuccess={() => {
-          markPinAcknowledged();
+          setPinWasChanged(true);
         }}
       />
     );
