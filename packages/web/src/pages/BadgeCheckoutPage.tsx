@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { apiOrQueue } from '@/lib/offlineQueue';
 import { CheckCircle2, LogOut, Loader2 } from 'lucide-react';
 
 interface BadgeData {
@@ -30,7 +31,7 @@ export function BadgeCheckoutPage() {
       const visits = await api.get<Array<{ id: string }>>(`/visits?badge_code=${code}&limit=1`);
       const visitId = visits.data?.[0]?.id;
       if (!visitId) throw new Error('Visit not found');
-      return api.post(`/visits/${visitId}/check-out`, {});
+      return await apiOrQueue<unknown>('visit-queue', `/visits/${visitId}/check-out`, {});
     },
     onSuccess: () => {
       setCheckedOut(true);

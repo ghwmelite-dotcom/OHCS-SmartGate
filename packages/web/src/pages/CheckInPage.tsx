@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api, type Visitor, type Visit, type Officer, type Directorate } from '@/lib/api';
+import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, getInitials, formatDate } from '@/lib/utils';
 import { ID_TYPES } from '@/lib/constants';
 import { PhotoCapture } from '@/components/PhotoCapture';
@@ -63,6 +64,7 @@ export function CheckInPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVisitor, setSelectedVisitor] = useState<Visitor | null>(null);
   const [createdVisit, setCreatedVisit] = useState<Visit | null>(null);
+  const [queuedOffline, setQueuedOffline] = useState(false);
 
   /* ---- Data queries ---- */
   const { data: searchResults, isFetching: isSearching } = useQuery({
@@ -122,15 +124,26 @@ export function CheckInPage() {
   );
 
   const checkInMutation = useMutation({
-    mutationFn: (data: CheckInForm) =>
-      api.post<Visit>('/visits/check-in', {
+    mutationFn: async (data: CheckInForm): Promise<ApiOrQueueResult<Visit>> => {
+      return await apiOrQueue<Visit>('visit-queue', '/visits/check-in', {
         visitor_id: selectedVisitor!.id,
         ...data,
-      }),
+      });
+    },
     onSuccess: (res) => {
-      setCreatedVisit(res.data ?? null);
-      setStep('success');
       queryClient.invalidateQueries({ queryKey: ['visits'] });
+      if ('queued' in res) {
+        setQueuedOffline(true);
+        setCreatedVisit(null);
+        setStep('success');
+        toast.success('Saved offline — will sync when connected');
+        playCheckInChime();
+        return;
+      }
+      // res.ok === true
+      setCreatedVisit(res.data);
+      setQueuedOffline(false);
+      setStep('success');
       toast.success('Visitor checked in successfully');
       playCheckInChime();
     },
@@ -179,6 +192,7 @@ export function CheckInPage() {
     setSearchQuery('');
     setSelectedVisitor(null);
     setCreatedVisit(null);
+    setQueuedOffline(false);
     newVisitorForm.reset();
     checkInForm.reset();
   }
@@ -472,6 +486,35 @@ export function CheckInPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* STEP 4: Success — queued offline */}
+      {step === 'success' && queuedOffline && (
+        <div className="bg-surface rounded-xl border border-border shadow-sm p-8 text-center space-y-4">
+          <div className="w-14 h-14 bg-accent/10 rounded-full flex items-center justify-center mx-auto">
+            <CheckCircle2 className="h-7 w-7 text-accent-warm" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Saved Offline</h2>
+            <p className="text-sm text-muted mt-1">
+              Check-in queued and will sync automatically when connectivity is restored.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={reset}
+              className="h-10 px-5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-light transition-colors"
+            >
+              Check In Another
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="h-10 px-5 bg-surface text-foreground text-sm font-medium rounded-lg border border-border hover:bg-background transition-colors"
+            >
+              Go to Dashboard
+            </button>
+          </div>
         </div>
       )}
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api, type Visit } from '@/lib/api';
+import { apiOrQueue } from '@/lib/offlineQueue';
 import { cn, formatTime, timeAgo } from '@/lib/utils';
 import { VisitorAvatar } from '@/components/VisitorAvatar';
 import { toast } from '@/stores/toast';
@@ -37,7 +38,7 @@ export function DashboardPage() {
   });
 
   const checkOutMutation = useMutation({
-    mutationFn: (visitId: string) => api.post(`/visits/${visitId}/check-out`, {}),
+    mutationFn: (visitId: string) => apiOrQueue<unknown>('visit-queue', `/visits/${visitId}/check-out`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['visits'] });
       setCheckingOut(null);
