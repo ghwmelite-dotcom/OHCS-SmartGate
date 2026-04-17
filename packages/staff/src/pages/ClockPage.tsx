@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PinChangeButton } from '@/hooks/usePinChange';
+import { SettingsMenu } from '@/components/SettingsMenu';
 import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
 import { api } from '@/lib/api';
 import { cn, formatTime } from '@/lib/utils';
@@ -190,6 +191,7 @@ export function ClockPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <SettingsMenu />
             <PinChangeButton />
             <button onClick={logout} className="text-[12px] text-white/50 hover:text-white/80 transition-colors">Sign Out</button>
           </div>
