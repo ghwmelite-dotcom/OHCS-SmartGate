@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { Env, SessionData } from '../types';
 import { success, error } from '../lib/response';
+import { sendLateClockAlert } from '../services/reminders';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
@@ -109,6 +110,15 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
         `UPDATE users SET current_streak = 1,
          longest_streak = MAX(longest_streak, 1) WHERE id = ?`
       ).bind(session.userId).run();
+    }
+  }
+
+  // Late-clock alert: fires for clock_in after 08:30 UTC (Ghana time).
+  if (type === 'clock_in') {
+    const now = new Date();
+    const minOfDay = now.getUTCHours() * 60 + now.getUTCMinutes();
+    if (minOfDay > 8 * 60 + 30) {
+      c.executionCtx.waitUntil(sendLateClockAlert(c.env, session.userId, now.toISOString()));
     }
   }
 
