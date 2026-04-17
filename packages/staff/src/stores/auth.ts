@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import { api } from '@/lib/api';
 
-interface User { id: string; name: string; email: string; role: string; }
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  pin_acknowledged: boolean;
+}
 
 interface AuthState {
   user: User | null;
@@ -9,6 +15,7 @@ interface AuthState {
   loginWithPin: (staffId: string, pin: string) => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
+  markPinAcknowledged: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -28,4 +35,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: res.data?.user ?? null, isLoading: false });
     } catch { set({ user: null, isLoading: false }); }
   },
+  markPinAcknowledged: () =>
+    set((state) => (state.user ? { user: { ...state.user, pin_acknowledged: true } } : state)),
 }));
