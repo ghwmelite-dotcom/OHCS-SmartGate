@@ -163,6 +163,32 @@ async function findUserByOfficer(
     .bind(officer.name).first<{ id: string }>();
 }
 
+export async function sendTypedNotification(env: Env, opts: {
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+  url: string;
+  visitId?: string | null;
+}): Promise<void> {
+  const notifId = crypto.randomUUID().replace(/-/g, '');
+  await env.DB.prepare(
+    `INSERT INTO notifications (id, user_id, type, title, body, visit_id)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(notifId, opts.userId, opts.type, opts.title, opts.body, opts.visitId ?? null).run();
+
+  if (PUSH_WHITELIST.has(opts.type)) {
+    const subs = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?')
+      .bind(opts.userId).all<{ endpoint: string; p256dh: string; auth: string }>();
+    for (const s of subs.results ?? []) {
+      const target: PushTarget = { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth };
+      sendWebPush(target, { title: opts.title, body: opts.body, url: opts.url, type: opts.type }, env).catch((err) => {
+        console.error('[webpush] send failed', err);
+      });
+    }
+  }
+}
+
 // Helper: create in-app notification
 async function createInAppNotification(
   userId: string,
@@ -170,25 +196,15 @@ async function createInAppNotification(
   env: Env,
   customBody?: string
 ): Promise<void> {
-  const notifId = crypto.randomUUID().replace(/-/g, '');
-  const type = 'visitor_arrival';
   const title = `Visitor: ${data.first_name} ${data.last_name}`;
   const body = customBody ?? `${data.organisation ? `From ${data.organisation} \u2014 ` : ''}${data.purpose_raw || 'No purpose stated'}`;
-
-  await env.DB.prepare(
-    `INSERT INTO notifications (id, user_id, type, title, body, visit_id)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).bind(notifId, userId, type, title, body, data.visit_id).run();
-
-  if (PUSH_WHITELIST.has(type)) {
-    const subs = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?')
-      .bind(userId).all<{ endpoint: string; p256dh: string; auth: string }>();
-    const url = data.visit_id ? `/visit/${data.visit_id}` : '/';
-    for (const s of subs.results ?? []) {
-      const target: PushTarget = { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth };
-      sendWebPush(target, { title, body, url, type }, env).catch((err) => {
-        console.error('[webpush] send failed', err);
-      });
-    }
-  }
+  const url = data.visit_id ? `/visit/${data.visit_id}` : '/';
+  await sendTypedNotification(env, {
+    userId,
+    type: 'visitor_arrival',
+    title,
+    body,
+    url,
+    visitId: data.visit_id,
+  });
 }
