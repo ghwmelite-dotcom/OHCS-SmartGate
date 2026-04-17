@@ -4,7 +4,7 @@ import type { Env, SessionData } from '../types';
 import { CheckInSchema } from '../lib/validation';
 import { success, created, notFound, error } from '../lib/response';
 import { classifyAndUpdate } from '../services/classifier';
-import { notifyHostOfficer } from '../services/notifier';
+import { notifyOnCheckIn } from '../services/notifier';
 import { z } from 'zod';
 
 export const visitRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
@@ -138,19 +138,21 @@ visitRoutes.post('/check-in', zValidator('json', CheckInSchema), async (c) => {
     );
   }
 
-  // Notify host officer in background (Telegram + in-app)
+  // Notify host + directorate leadership (Telegram + in-app)
   if (body.host_officer_id && visit) {
     const v = visit as Record<string, unknown>;
     c.executionCtx.waitUntil(
-      notifyHostOfficer({
+      notifyOnCheckIn({
         visit_id: visitId,
         host_officer_id: body.host_officer_id,
         first_name: String(v.first_name ?? ''),
         last_name: String(v.last_name ?? ''),
         organisation: (v.organisation as string | null) ?? null,
         purpose_raw: body.purpose_raw || null,
+        purpose_category: body.purpose_category || null,
         badge_code: badgeCode,
         check_in_at: String(v.check_in_at ?? ''),
+        directorate_id: body.directorate_id || null,
         directorate_abbr: (v.directorate_abbr as string | null) ?? null,
       }, c.env)
     );

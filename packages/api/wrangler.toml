@@ -3,9 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Daily attendance summary — 9:00 AM Ghana time (UTC+0)
+# Attendance summaries — Ghana time (UTC+0)
+# Daily: 9 AM Mon-Fri | Weekly: 4 PM Friday | Monthly: 9 AM 1st | Yearly: 9 AM Jan 1
 [triggers]
-crons = ["0 9 * * 1-5"]
+crons = ["0 9 * * 1-5", "0 16 * * 5", "0 9 1 * *", "0 9 1 1 *"]
 
 [vars]
 ENVIRONMENT = "production"

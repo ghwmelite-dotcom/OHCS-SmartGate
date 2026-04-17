@@ -15,25 +15,85 @@ export async function telegramWebhook(c: Context<{ Bindings: Env }>) {
 
   if (!chatId || !text) return c.json({ ok: true });
 
-  const appUrl = c.env.ENVIRONMENT === 'production'
-    ? 'https://ohcs-smartgate.pages.dev'
-    : 'http://localhost:5173';
-
   if (text === '/start') {
-    const code = await generateLinkCode(String(chatId), c.env);
     await sendTelegramMessage({
       chatId: String(chatId),
-      text: `Welcome to <b>OHCS SmartGate</b>!\n\nTo receive visitor notifications, link your account:\n\n<a href="${appUrl}/link-telegram?code=${code}">Click here to link your account</a>\n\nThis link expires in 10 minutes.\n\nCommands:\n/start \u2014 Link your officer account\n/admin \u2014 Subscribe to daily attendance summaries`,
+      text: [
+        `\u{1F1EC}\u{1F1ED} <b>OHCS SmartGate Bot</b>`,
+        '',
+        `Link your account to receive visitor notifications and daily attendance summaries.`,
+        '',
+        `<b>Commands:</b>`,
+        `/link 1334685 \u2014 Link your Staff ID`,
+        `/admin \u2014 Get daily attendance reports`,
+        `/stop \u2014 Unsubscribe`,
+        '',
+        `Just send /link followed by your Staff ID to get started.`,
+      ].join('\n'),
+      token: c.env.TELEGRAM_BOT_TOKEN,
+    });
+  }
+
+  // /link <staff_id> — one-step linking
+  if (text?.startsWith('/link')) {
+    const staffId = text.replace('/link', '').trim().toUpperCase();
+    if (!staffId) {
+      await sendTelegramMessage({
+        chatId: String(chatId),
+        text: `Please include your Staff ID.\n\nExample: <code>/link 1334685</code>`,
+        token: c.env.TELEGRAM_BOT_TOKEN,
+      });
+      return c.json({ ok: true });
+    }
+
+    // Find officer or user by staff_id
+    const user = await c.env.DB.prepare('SELECT id, name, email FROM users WHERE staff_id = ?')
+      .bind(staffId).first<{ id: string; name: string; email: string }>();
+
+    if (!user) {
+      await sendTelegramMessage({
+        chatId: String(chatId),
+        text: `\u274C Staff ID <code>${staffId}</code> not found. Check your ID and try again.`,
+        token: c.env.TELEGRAM_BOT_TOKEN,
+      });
+      return c.json({ ok: true });
+    }
+
+    // Link: update officer record if exists, or store in KV as user-telegram mapping
+    const officer = await c.env.DB.prepare('SELECT id FROM officers WHERE email = ? OR name = ?')
+      .bind(user.email, user.name).first<{ id: string }>();
+
+    if (officer) {
+      await c.env.DB.prepare('UPDATE officers SET telegram_chat_id = ? WHERE id = ?')
+        .bind(String(chatId), officer.id).run();
+    }
+
+    // Also store user-level telegram link in KV for direct notifications
+    await c.env.KV.put(`telegram-user:${user.id}`, String(chatId));
+
+    await sendTelegramMessage({
+      chatId: String(chatId),
+      text: [
+        `\u2705 <b>Linked successfully!</b>`,
+        '',
+        `\u{1F464} ${user.name}`,
+        `\u{1F4CB} Staff ID: ${staffId}`,
+        '',
+        `You will now receive:`,
+        `\u2022 Visitor arrival notifications`,
+        `\u2022 Check-in/out confirmations`,
+        '',
+        `Send /admin for daily attendance summaries.`,
+      ].join('\n'),
       token: c.env.TELEGRAM_BOT_TOKEN,
     });
   }
 
   if (text === '/admin') {
-    // Store this chat ID for daily summaries
     await c.env.KV.put('telegram-admin-chat-id', String(chatId));
     await sendTelegramMessage({
       chatId: String(chatId),
-      text: `\u2705 <b>Admin notifications enabled!</b>\n\nYou will receive:\n\u2022 Daily attendance summary at 9:00 AM (Mon\u2013Fri)\n\u2022 Visitor arrival alerts\n\nTo stop, send /stop`,
+      text: `\u2705 <b>Daily summaries enabled!</b>\n\nYou\u2019ll receive attendance reports at 9:00 AM (Mon\u2013Fri).\n\nSend /stop to unsubscribe.`,
       token: c.env.TELEGRAM_BOT_TOKEN,
     });
   }
@@ -42,7 +102,7 @@ export async function telegramWebhook(c: Context<{ Bindings: Env }>) {
     await c.env.KV.delete('telegram-admin-chat-id');
     await sendTelegramMessage({
       chatId: String(chatId),
-      text: `Admin notifications disabled.`,
+      text: `Notifications disabled. Send /start to re-enable.`,
       token: c.env.TELEGRAM_BOT_TOKEN,
     });
   }
