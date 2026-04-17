@@ -2,6 +2,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/theme';
 import { formatDate } from '@/lib/utils';
 import { NotificationBell } from '../NotificationBell';
+import { SettingsMenu } from '@/components/SettingsMenu';
 import { MapPin, Sun, Moon, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -62,6 +63,7 @@ export function Header() {
           ))}
         </div>
 
+        <SettingsMenu />
         <NotificationBell />
 
         <div className="hidden md:block h-8 w-[1px] bg-border" />

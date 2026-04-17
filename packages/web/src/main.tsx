@@ -2,12 +2,23 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './styles/tokens.css';
+import { useInstallStore } from './stores/install';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
   </StrictMode>
 );
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  const store = useInstallStore.getState();
+  store.setDeferredPrompt(e as Parameters<typeof store.setDeferredPrompt>[0]);
+});
+
+window.addEventListener('appinstalled', () => {
+  useInstallStore.getState().setInstalled(true);
+});
 
 // Register service worker for PWA — auto-reload on update
 if ('serviceWorker' in navigator) {
@@ -29,6 +40,10 @@ if ('serviceWorker' in navigator) {
             window.location.reload();
           }
         });
+      });
+
+      window.addEventListener('online', () => {
+        navigator.serviceWorker.controller?.postMessage({ type: 'flush-queue' });
       });
     } catch {
       // SW registration failed — app works fine without it
