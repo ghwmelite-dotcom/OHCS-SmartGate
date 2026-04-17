@@ -20,6 +20,7 @@ import { clockRoutes } from './routes/clock';
 import { notificationsPushRoutes } from './routes/notifications-push';
 import { attendanceRoutes } from './routes/attendance';
 import { sendDailySummary as sendDailySummaryFn } from './services/daily-summary';
+import { sendClockReminders, sendMonthlyReportReady } from './services/reminders';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 
@@ -101,7 +102,24 @@ app.post('/api/admin/send-daily-summary', async (c) => {
 
 export default {
   fetch: app.fetch,
-  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
-    await sendDailySummaryFn(env);
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil((async () => {
+      switch (event.cron) {
+        case '30 8 * * 1-5':
+          await sendClockReminders(env);
+          break;
+        case '0 9 1 * *':
+          await sendDailySummaryFn(env);
+          await sendMonthlyReportReady(env);
+          break;
+        case '0 9 * * 1-5':
+        case '0 16 * * 5':
+        case '0 9 1 1 *':
+          await sendDailySummaryFn(env);
+          break;
+        default:
+          console.warn(`[scheduled] unknown cron: ${event.cron}`);
+      }
+    })());
   },
 };
