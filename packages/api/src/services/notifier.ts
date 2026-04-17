@@ -1,7 +1,10 @@
 import type { Env } from '../types';
 import { sendTelegramMessage } from './telegram';
+import { sendWebPush, type PushTarget } from '../lib/webpush';
 
 const PERSONAL_CATEGORIES = ['personal_visit'];
+
+const PUSH_WHITELIST = new Set(['visitor_arrival', 'clock_reminder', 'late_clock_alert', 'monthly_report_ready']);
 
 interface VisitNotifyData {
   visit_id: string;
@@ -168,14 +171,24 @@ async function createInAppNotification(
   customBody?: string
 ): Promise<void> {
   const notifId = crypto.randomUUID().replace(/-/g, '');
+  const type = 'visitor_arrival';
+  const title = `Visitor: ${data.first_name} ${data.last_name}`;
+  const body = customBody ?? `${data.organisation ? `From ${data.organisation} \u2014 ` : ''}${data.purpose_raw || 'No purpose stated'}`;
+
   await env.DB.prepare(
     `INSERT INTO notifications (id, user_id, type, title, body, visit_id)
-     VALUES (?, ?, 'visitor_arrival', ?, ?, ?)`
-  ).bind(
-    notifId,
-    userId,
-    `Visitor: ${data.first_name} ${data.last_name}`,
-    customBody ?? `${data.organisation ? `From ${data.organisation} \u2014 ` : ''}${data.purpose_raw || 'No purpose stated'}`,
-    data.visit_id
-  ).run();
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(notifId, userId, type, title, body, data.visit_id).run();
+
+  if (PUSH_WHITELIST.has(type)) {
+    const subs = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?')
+      .bind(userId).all<{ endpoint: string; p256dh: string; auth: string }>();
+    const url = data.visit_id ? `/visit/${data.visit_id}` : '/';
+    for (const s of subs.results ?? []) {
+      const target: PushTarget = { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth };
+      sendWebPush(target, { title, body, url, type }, env).catch((err) => {
+        console.error('[webpush] send failed', err);
+      });
+    }
+  }
 }
