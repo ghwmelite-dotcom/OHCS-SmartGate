@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Settings } from 'lucide-react';
 import { InstallButton } from './InstallButton';
+import { PushToggle } from './PushToggle';
 
 export function SettingsMenu() {
   const [open, setOpen] = useState(false);
@@ -28,6 +29,7 @@ export function SettingsMenu() {
       {open && (
         <div className="absolute right-0 top-11 z-30 bg-white rounded-xl shadow-xl border border-gray-200 w-64 p-3 space-y-2">
           <InstallButton />
+          <PushToggle />
         </div>
       )}
     </div>
