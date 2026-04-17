@@ -63,7 +63,10 @@ export async function encryptPayload(payload: Uint8Array, p256dhB64: string, aut
     ext: true,
   };
   const recipKey = await crypto.subtle.importKey('jwk', recipJwk, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-  const sharedBits = await crypto.subtle.deriveBits({ name: 'ECDH', $public: recipKey }, ephemPair.privateKey, 256);
+  // Workers types require `$public` (TS keyword escape), but the runtime accepts standard `public`.
+  // Pass both so both compiler and runtime are satisfied.
+  const deriveAlgo = { name: 'ECDH', public: recipKey, $public: recipKey } as unknown as { name: 'ECDH'; $public: CryptoKey };
+  const sharedBits = await crypto.subtle.deriveBits(deriveAlgo, ephemPair.privateKey, 256);
   const shared = new Uint8Array(sharedBits);
 
   // 16-byte random salt
