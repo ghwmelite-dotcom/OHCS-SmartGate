@@ -27,11 +27,33 @@ const clockSchema = z.object({
   type: z.enum(['clock_in', 'clock_out']),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
+  idempotency_key: z.string().min(1).max(100).optional(),
 });
 
 clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
   const session = c.get('session');
-  const { type, latitude, longitude } = c.req.valid('json');
+  const { type, latitude, longitude, idempotency_key } = c.req.valid('json');
+
+  // Idempotency check — return existing record immediately (before geofence re-validation)
+  if (idempotency_key) {
+    const existing = await c.env.DB.prepare(
+      "SELECT id, type, timestamp FROM clock_records WHERE user_id = ? AND idempotency_key = ? LIMIT 1"
+    ).bind(session.userId, idempotency_key).first<{ id: string; type: string; timestamp: string }>();
+    if (existing) {
+      return success(c, {
+        id: existing.id,
+        type: existing.type,
+        timestamp: existing.timestamp,
+        user_name: session.name,
+        staff_id: '',
+        within_geofence: true,
+        distance_meters: 0,
+        streak: 0,
+        longest_streak: 0,
+        deduplicated: true,
+      });
+    }
+  }
 
   // Check geofence
   const distance = haversineDistance(latitude, longitude, GEOFENCE.lat, GEOFENCE.lng);
@@ -64,9 +86,9 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
   const id = crypto.randomUUID().replace(/-/g, '');
 
   await c.env.DB.prepare(
-    `INSERT INTO clock_records (id, user_id, type, latitude, longitude, within_geofence)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).bind(id, session.userId, type, latitude, longitude, withinGeofence ? 1 : 0).run();
+    `INSERT INTO clock_records (id, user_id, type, latitude, longitude, within_geofence, idempotency_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, session.userId, type, latitude, longitude, withinGeofence ? 1 : 0, idempotency_key ?? null).run();
 
   // Update streak on clock-in
   if (type === 'clock_in') {
