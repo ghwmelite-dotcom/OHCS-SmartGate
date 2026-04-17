@@ -151,7 +151,7 @@ authRoutes.post('/change-pin', zValidator('json', changePinSchema), async (c) =>
   if (!valid) return error(c, 'WRONG_PIN', 'Current PIN is incorrect', 401);
 
   const newHash = await hashPin(new_pin);
-  await c.env.DB.prepare('UPDATE users SET pin_hash = ? WHERE id = ?')
+  await c.env.DB.prepare('UPDATE users SET pin_hash = ?, pin_acknowledged = 1 WHERE id = ?')
     .bind(newHash, session.userId).run();
 
   return success(c, { message: 'PIN changed successfully' });
