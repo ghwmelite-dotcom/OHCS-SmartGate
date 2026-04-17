@@ -75,9 +75,10 @@ authRoutes.post('/pin-login', zValidator('json', pinLoginSchema), async (c) => {
   const { staff_id, pin, remember } = c.req.valid('json');
 
   const user = await c.env.DB.prepare(
-    'SELECT id, name, email, role, pin_hash, is_active FROM users WHERE staff_id = ?'
+    'SELECT id, name, email, role, pin_hash, is_active, pin_acknowledged FROM users WHERE staff_id = ?'
   ).bind(staff_id.toUpperCase()).first<{
-    id: string; name: string; email: string; role: string; pin_hash: string | null; is_active: number;
+    id: string; name: string; email: string; role: string;
+    pin_hash: string | null; is_active: number; pin_acknowledged: number;
   }>();
 
   if (!user || !user.is_active) {
@@ -107,7 +108,15 @@ authRoutes.post('/pin-login', zValidator('json', pinLoginSchema), async (c) => {
     maxAge: ttl,
   });
 
-  return success(c, { user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  return success(c, {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      pin_acknowledged: user.pin_acknowledged === 1,
+    },
+  });
 });
 
 authRoutes.post('/logout', async (c) => {
