@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     email       TEXT NOT NULL UNIQUE,
     staff_id    TEXT UNIQUE,
     pin_hash    TEXT,
+    pin_acknowledged INTEGER NOT NULL DEFAULT 0 CHECK(pin_acknowledged IN (0, 1)),
     role        TEXT NOT NULL DEFAULT 'staff' CHECK(role IN ('superadmin','admin','receptionist','it','director','staff')),
     grade       TEXT,
     is_active   INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
