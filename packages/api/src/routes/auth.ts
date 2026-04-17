@@ -157,6 +157,21 @@ authRoutes.post('/change-pin', zValidator('json', changePinSchema), async (c) =>
   return success(c, { message: 'PIN changed successfully' });
 });
 
+// Acknowledge the admin-set PIN without changing it ("keep current PIN"
+// path for the first-login prompt).
+authRoutes.post('/acknowledge-pin', async (c) => {
+  const sessionId = getCookie(c, 'session_id');
+  if (!sessionId) return error(c, 'UNAUTHORIZED', 'Not authenticated', 401);
+  const session = await getSession(sessionId, c.env);
+  if (!session) return error(c, 'UNAUTHORIZED', 'Session expired', 401);
+
+  await c.env.DB.prepare('UPDATE users SET pin_acknowledged = 1 WHERE id = ?')
+    .bind(session.userId)
+    .run();
+
+  return success(c, { message: 'PIN acknowledged' });
+});
+
 authRoutes.get('/me', async (c) => {
   const sessionId = getCookie(c, 'session_id');
   if (!sessionId) {
