@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LoginPage } from './pages/LoginPage';
 import { ClockPage } from './pages/ClockPage';
 import { useAuthStore } from './stores/auth';
+import { OfflineBanner } from './components/OfflineBanner';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 15_000, retry: 1 } },
@@ -41,6 +42,7 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <OfflineBanner />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
