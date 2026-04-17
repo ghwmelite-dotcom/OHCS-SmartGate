@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PinChangeButton } from '@/hooks/usePinChange';
+import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
 import { api } from '@/lib/api';
 import { cn, formatTime } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
@@ -35,6 +36,7 @@ type Phase = 'idle' | 'locating' | 'photo' | 'submitting' | 'success' | 'error';
 export function ClockPage() {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const showFirstLoginPrompt = user ? !user.pin_acknowledged : false;
   const logout = useAuthStore((s) => s.logout);
 
   const [phase, setPhase] = useState<Phase>('idle');
@@ -173,6 +175,7 @@ export function ClockPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {showFirstLoginPrompt && <FirstLoginPinPrompt />}
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1A4D2E, #0F2E1B)' }}>
         <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, #CE1126 33%, #FCD116 33% 66%, #006B3F 66%)' }} />
