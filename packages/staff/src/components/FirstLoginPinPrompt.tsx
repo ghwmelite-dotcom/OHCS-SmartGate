@@ -1,40 +1,17 @@
 import { useState } from 'react';
-import { KeyRound, ShieldCheck, Loader2 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { KeyRound, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { PinChangeModal } from '@/hooks/usePinChange';
 
 export function FirstLoginPinPrompt() {
   const markPinAcknowledged = useAuthStore((s) => s.markPinAcknowledged);
   const [showChangeModal, setShowChangeModal] = useState(false);
-  const [keepStatus, setKeepStatus] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [keepError, setKeepError] = useState('');
-  const [pinWasChanged, setPinWasChanged] = useState(false);
-
-  async function handleKeep() {
-    setKeepStatus('loading');
-    setKeepError('');
-    try {
-      await api.post('/auth/acknowledge-pin', {});
-      markPinAcknowledged();
-    } catch (err) {
-      setKeepError(err instanceof Error ? err.message : 'Failed to save your choice');
-      setKeepStatus('error');
-    }
-  }
 
   if (showChangeModal) {
     return (
       <PinChangeModal
-        onClose={() => {
-          setShowChangeModal(false);
-          if (pinWasChanged) {
-            markPinAcknowledged();
-          }
-        }}
-        onSuccess={() => {
-          setPinWasChanged(true);
-        }}
+        dismissable={false}
+        onClose={markPinAcknowledged}
       />
     );
   }
@@ -60,37 +37,17 @@ export function FirstLoginPinPrompt() {
             Secure your account
           </h3>
           <p className="text-[14px] text-gray-600 text-center mt-2 leading-relaxed">
-            You're currently using the PIN set by your administrator. Would you like to change it now, or keep it?
+            You're currently using the PIN set by your administrator. For security, please set a new PIN to continue.
           </p>
 
-          {keepError && (
-            <p className="text-red-600 text-[13px] font-medium text-center mt-3">{keepError}</p>
-          )}
-
-          <div className="mt-6 space-y-3">
+          <div className="mt-6">
             <button
               type="button"
               onClick={() => setShowChangeModal(true)}
-              disabled={keepStatus === 'loading'}
-              className="w-full h-12 bg-[#1A4D2E] text-white rounded-xl font-bold text-[15px] hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              className="w-full h-12 bg-[#1A4D2E] text-white rounded-xl font-bold text-[15px] hover:brightness-110 transition-all flex items-center justify-center gap-2"
             >
               <KeyRound className="h-4 w-4" />
               Change PIN
-            </button>
-            <button
-              type="button"
-              onClick={handleKeep}
-              disabled={keepStatus === 'loading'}
-              className="w-full h-12 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-semibold text-[15px] hover:border-gray-300 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-            >
-              {keepStatus === 'loading' ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Keep Current PIN'
-              )}
             </button>
           </div>
         </div>

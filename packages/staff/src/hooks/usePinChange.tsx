@@ -15,7 +15,7 @@ export function PinChangeButton() {
   );
 }
 
-export function PinChangeModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
+export function PinChangeModal({ onClose, onSuccess, dismissable = true }: { onClose: () => void; onSuccess?: () => void; dismissable?: boolean }) {
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -42,7 +42,7 @@ export function PinChangeModal({ onClose, onSuccess }: { onClose: () => void; on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-5" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-5" onClick={dismissable ? onClose : undefined}>
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, #D4A017, #F5D76E, #D4A017)' }} />
         <div className="p-6">
@@ -62,9 +62,11 @@ export function PinChangeModal({ onClose, onSuccess }: { onClose: () => void; on
                   <KeyRound className="h-5 w-5 text-[#1A4D2E]" />
                   <h3 className="text-[18px] font-bold text-gray-900" style={{ fontFamily: "'Playfair Display', serif" }}>Change PIN</h3>
                 </div>
-                <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-                  <X className="h-4 w-4" />
-                </button>
+                {dismissable && (
+                  <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
