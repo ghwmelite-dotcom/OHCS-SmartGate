@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PinChangeButton } from '@/hooks/usePinChange';
 import { SettingsMenu } from '@/components/SettingsMenu';
 import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
 import { api } from '@/lib/api';
+import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, formatTime } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -62,11 +63,27 @@ export function ClockPage() {
   const canClockOut = status?.clocked_in && !status?.clocked_out;
 
   const clockMutation = useMutation({
-    mutationFn: (data: { type: string; latitude: number; longitude: number }) =>
-      api.post<ClockResult>('/clock', data),
-    onSuccess: async (res) => {
+    mutationFn: async (data: { type: string; latitude: number; longitude: number }) => {
+      return await apiOrQueue<ClockResult>('clock-queue', '/clock', data);
+    },
+    onSuccess: async (res: ApiOrQueueResult<ClockResult>) => {
+      if ('queued' in res) {
+        setResult({
+          id: res.id,
+          type: clockType,
+          timestamp: new Date().toISOString(),
+          user_name: user?.name ?? '',
+          staff_id: '',
+          within_geofence: true,
+          distance_meters: 0,
+          streak: status?.streak ?? 0,
+          longest_streak: status?.longest_streak ?? 0,
+        } as ClockResult);
+        setPhase('success');
+        stopCamera();
+        return;
+      }
       if (res.data && photoBlob) {
-        // Upload photo
         const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
         await fetch(`${apiBase}/api/clock/${res.data.id}/photo`, {
           method: 'POST', credentials: 'include',
@@ -85,6 +102,16 @@ export function ClockPage() {
       stopCamera();
     },
   });
+
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.data?.type === 'queue-drained') {
+        queryClient.invalidateQueries({ queryKey: ['clock-status'] });
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+  }, [queryClient]);
 
   // Get GPS location
   function startClock(type: 'clock_in' | 'clock_out') {
