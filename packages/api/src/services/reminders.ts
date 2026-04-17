@@ -1,0 +1,98 @@
+import type { Env } from '../types';
+import { sendTypedNotification } from './notifier';
+
+const LATE_THRESHOLD_MIN_OF_DAY = 8 * 60 + 30; // 08:30 UTC (Ghana time)
+
+/**
+ * 08:30 weekday cron.
+ * Sends a push + in-app reminder to every active staff member who hasn't
+ * clocked in yet today.
+ */
+export async function sendClockReminders(env: Env): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = await env.DB.prepare(
+    `SELECT u.id, u.name FROM users u
+     WHERE u.is_active = 1
+       AND u.staff_id IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM clock_records c
+         WHERE c.user_id = u.id AND c.type = 'clock_in' AND DATE(c.timestamp) = ?
+       )`
+  ).bind(today).all<{ id: string; name: string }>();
+
+  for (const u of rows.results ?? []) {
+    const firstName = u.name.split(' ')[0] || 'there';
+    await sendTypedNotification(env, {
+      userId: u.id,
+      type: 'clock_reminder',
+      title: "Don't forget to clock in",
+      body: `Have a good day, ${firstName}.`,
+      url: '/',
+    }).catch((err) => console.error('[reminders] clock_reminder failed', err));
+  }
+  console.log(`[reminders] sent clock_reminder to ${rows.results?.length ?? 0} users`);
+}
+
+/**
+ * Fired from POST /clock when a clock_in lands after 08:30.
+ * Notifies directorate directors + superadmins (minus the clocker themselves).
+ */
+export async function sendLateClockAlert(env: Env, userId: string, clockedAtISO: string): Promise<void> {
+  const clocker = await env.DB.prepare(
+    'SELECT name, directorate_id FROM users WHERE id = ?'
+  ).bind(userId).first<{ name: string; directorate_id: string | null }>();
+  if (!clocker) return;
+
+  const recipients = await env.DB.prepare(
+    `SELECT id FROM users
+     WHERE is_active = 1 AND id != ?
+       AND (
+         (role = 'director' AND directorate_id = ?)
+         OR role = 'superadmin'
+       )`
+  ).bind(userId, clocker.directorate_id ?? '').all<{ id: string }>();
+
+  const at = new Date(clockedAtISO);
+  const hh = String(at.getUTCHours()).padStart(2, '0');
+  const mm = String(at.getUTCMinutes()).padStart(2, '0');
+  const minOfDay = at.getUTCHours() * 60 + at.getUTCMinutes();
+  const minutesLate = Math.max(0, minOfDay - LATE_THRESHOLD_MIN_OF_DAY);
+
+  for (const r of recipients.results ?? []) {
+    await sendTypedNotification(env, {
+      userId: r.id,
+      type: 'late_clock_alert',
+      title: `${clocker.name} clocked in late`,
+      body: `Clocked in at ${hh}:${mm} (${minutesLate} minutes late).`,
+      url: '/attendance',
+    }).catch((err) => console.error('[reminders] late_clock_alert failed', err));
+  }
+  console.log(`[reminders] late_clock_alert for ${clocker.name} sent to ${recipients.results?.length ?? 0} recipients`);
+}
+
+/**
+ * 1st-of-month 09:00 cron.
+ * Notifies directors + superadmins that the monthly attendance rollup is
+ * available (the Telegram summary has already fired via sendDailySummary).
+ */
+export async function sendMonthlyReportReady(env: Env): Promise<void> {
+  const now = new Date();
+  const lastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const monthName = lastMonth.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  const year = lastMonth.getUTCFullYear();
+
+  const recipients = await env.DB.prepare(
+    "SELECT id FROM users WHERE is_active = 1 AND role IN ('director', 'superadmin')"
+  ).all<{ id: string }>();
+
+  for (const r of recipients.results ?? []) {
+    await sendTypedNotification(env, {
+      userId: r.id,
+      type: 'monthly_report_ready',
+      title: 'Monthly attendance summary ready',
+      body: `${monthName} ${year} rollup is available.`,
+      url: '/attendance',
+    }).catch((err) => console.error('[reminders] monthly_report_ready failed', err));
+  }
+  console.log(`[reminders] monthly_report_ready sent to ${recipients.results?.length ?? 0} recipients`);
+}
