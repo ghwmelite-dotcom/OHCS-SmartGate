@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PinChangeButton } from '@/hooks/usePinChange';
 import { SettingsMenu } from '@/components/SettingsMenu';
 import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
+import { AbsenceNoticeButton } from '@/components/AbsenceNoticeButton';
 import { api } from '@/lib/api';
 import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, formatTime } from '@/lib/utils';
@@ -406,6 +407,10 @@ export function ClockPage() {
               </button>
             </div>
           )}
+        </div>
+
+        <div className="w-full flex justify-center mt-8">
+          <AbsenceNoticeButton />
         </div>
 
         {/* Footer motto */}
