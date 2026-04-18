@@ -5,6 +5,7 @@ import { CheckInSchema } from '../lib/validation';
 import { success, created, notFound, error } from '../lib/response';
 import { classifyAndUpdate } from '../services/classifier';
 import { notifyOnCheckIn } from '../services/notifier';
+import { requireRole } from '../lib/require-role';
 import { z } from 'zod';
 
 export const visitRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
@@ -22,6 +23,8 @@ const listSchema = z.object({
 });
 
 visitRoutes.get('/', zValidator('query', listSchema), async (c) => {
+  const blocked = requireRole(c, 'superadmin', 'admin', 'receptionist', 'director');
+  if (blocked) return blocked;
   const { date, from, to, status, directorate_id, badge_code, q, limit, cursor } = c.req.valid('query');
   let sql = `SELECT v.*, vis.first_name, vis.last_name, vis.organisation, vis.phone,
              COALESCE(o.name, v.host_name_manual) as host_name, d.abbreviation as directorate_abbr
@@ -82,6 +85,8 @@ visitRoutes.get('/', zValidator('query', listSchema), async (c) => {
 });
 
 visitRoutes.get('/active', async (c) => {
+  const blocked = requireRole(c, 'superadmin', 'admin', 'receptionist', 'director');
+  if (blocked) return blocked;
   const results = await c.env.DB.prepare(
     `SELECT v.*, vis.first_name, vis.last_name, vis.organisation,
             COALESCE(o.name, v.host_name_manual) as host_name, d.abbreviation as directorate_abbr

@@ -3,11 +3,14 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, SessionData } from '../types';
 import { success } from '../lib/response';
+import { requireRole } from '../lib/require-role';
 
 export const analyticsRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
 // Today's summary
 analyticsRoutes.get('/today', async (c) => {
+  const blocked = requireRole(c, 'superadmin', 'admin', 'director');
+  if (blocked) return blocked;
   const today = new Date().toISOString().slice(0, 10);
 
   const [totalResult, activeResult, avgResult, byDirectorate, byHour] = await Promise.all([
@@ -59,6 +62,8 @@ const trendsSchema = z.object({
 });
 
 analyticsRoutes.get('/trends', zValidator('query', trendsSchema), async (c) => {
+  const blocked = requireRole(c, 'superadmin', 'admin', 'director');
+  if (blocked) return blocked;
   const { days } = c.req.valid('query');
   const fromDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
@@ -125,6 +130,8 @@ const topVisitorsSchema = z.object({
 });
 
 analyticsRoutes.get('/top-visitors', zValidator('query', topVisitorsSchema), async (c) => {
+  const blocked = requireRole(c, 'superadmin', 'admin', 'director');
+  if (blocked) return blocked;
   const { days, limit } = c.req.valid('query');
   const fromDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 

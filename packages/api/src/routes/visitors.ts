@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import type { Env, SessionData } from '../types';
 import { CreateVisitorSchema, UpdateVisitorSchema } from '../lib/validation';
 import { success, created, notFound, error } from '../lib/response';
+import { requireRole } from '../lib/require-role';
 import { z } from 'zod';
 
 export const visitorRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
@@ -14,6 +15,8 @@ const searchSchema = z.object({
 });
 
 visitorRoutes.get('/', zValidator('query', searchSchema), async (c) => {
+  const blocked = requireRole(c, 'superadmin', 'admin', 'receptionist', 'director');
+  if (blocked) return blocked;
   const { q, limit, cursor } = c.req.valid('query');
   let sql = 'SELECT * FROM visitors';
   const params: unknown[] = [];
@@ -47,6 +50,8 @@ visitorRoutes.get('/', zValidator('query', searchSchema), async (c) => {
 });
 
 visitorRoutes.get('/:id', async (c) => {
+  const blocked = requireRole(c, 'superadmin', 'admin', 'receptionist', 'director');
+  if (blocked) return blocked;
   const id = c.req.param('id');
   const visitor = await c.env.DB.prepare('SELECT * FROM visitors WHERE id = ?').bind(id).first();
   if (!visitor) return notFound(c, 'Visitor');
