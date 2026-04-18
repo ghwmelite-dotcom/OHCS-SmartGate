@@ -181,12 +181,14 @@ export async function sendTypedNotification(env: Env, opts: {
   if (PUSH_WHITELIST.has(opts.type)) {
     const subs = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?')
       .bind(opts.userId).all<{ endpoint: string; p256dh: string; auth: string }>();
-    for (const s of subs.results ?? []) {
-      const target: PushTarget = { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth };
-      sendWebPush(target, { title: opts.title, body: opts.body, url: opts.url, type: opts.type }, env).catch((err) => {
-        devError(env, '[webpush] send failed', err);
-      });
-    }
+    await Promise.all(
+      (subs.results ?? []).map((s) => {
+        const target: PushTarget = { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth };
+        return sendWebPush(target, { title: opts.title, body: opts.body, url: opts.url, type: opts.type }, env).catch((err) => {
+          devError(env, '[webpush] send failed', err);
+        });
+      }),
+    );
   }
 }
 

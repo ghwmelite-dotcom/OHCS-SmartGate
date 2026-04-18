@@ -26,16 +26,18 @@ export async function sendClockReminders(env: Env): Promise<void> {
        )`
   ).bind(today, today).all<{ id: string; name: string }>();
 
-  for (const u of rows.results ?? []) {
-    const firstName = u.name.split(' ')[0] || 'there';
-    await sendTypedNotification(env, {
-      userId: u.id,
-      type: 'clock_reminder',
-      title: "Don't forget to clock in",
-      body: `Have a good day, ${firstName}.`,
-      url: '/',
-    }).catch((err) => devError(env, '[reminders] clock_reminder failed', err));
-  }
+  await Promise.all(
+    (rows.results ?? []).map((u) => {
+      const firstName = u.name.split(' ')[0] || 'there';
+      return sendTypedNotification(env, {
+        userId: u.id,
+        type: 'clock_reminder',
+        title: "Don't forget to clock in",
+        body: `Have a good day, ${firstName}.`,
+        url: '/',
+      }).catch((err) => devError(env, '[reminders] clock_reminder failed', err));
+    }),
+  );
   devLog(env, `[reminders] sent clock_reminder to ${rows.results?.length ?? 0} users`);
 }
 
@@ -64,15 +66,17 @@ export async function sendLateClockAlert(env: Env, userId: string, clockedAtISO:
   const minOfDay = at.getUTCHours() * 60 + at.getUTCMinutes();
   const minutesLate = Math.max(0, minOfDay - LATE_THRESHOLD_MIN_OF_DAY);
 
-  for (const r of recipients.results ?? []) {
-    await sendTypedNotification(env, {
-      userId: r.id,
-      type: 'late_clock_alert',
-      title: `${clocker.name} clocked in late`,
-      body: `Clocked in at ${hh}:${mm} (${minutesLate} minutes late).`,
-      url: '/attendance',
-    }).catch((err) => devError(env, '[reminders] late_clock_alert failed', err));
-  }
+  await Promise.all(
+    (recipients.results ?? []).map((r) =>
+      sendTypedNotification(env, {
+        userId: r.id,
+        type: 'late_clock_alert',
+        title: `${clocker.name} clocked in late`,
+        body: `Clocked in at ${hh}:${mm} (${minutesLate} minutes late).`,
+        url: '/attendance',
+      }).catch((err) => devError(env, '[reminders] late_clock_alert failed', err)),
+    ),
+  );
   devLog(env, `[reminders] late_clock_alert for ${clocker.name} sent to ${recipients.results?.length ?? 0} recipients`);
 }
 
@@ -91,15 +95,17 @@ export async function sendMonthlyReportReady(env: Env): Promise<void> {
     "SELECT id FROM users WHERE is_active = 1 AND role IN ('director', 'superadmin')"
   ).all<{ id: string }>();
 
-  for (const r of recipients.results ?? []) {
-    await sendTypedNotification(env, {
-      userId: r.id,
-      type: 'monthly_report_ready',
-      title: 'Monthly attendance summary ready',
-      body: `${monthName} ${year} rollup is available.`,
-      url: '/attendance',
-    }).catch((err) => devError(env, '[reminders] monthly_report_ready failed', err));
-  }
+  await Promise.all(
+    (recipients.results ?? []).map((r) =>
+      sendTypedNotification(env, {
+        userId: r.id,
+        type: 'monthly_report_ready',
+        title: 'Monthly attendance summary ready',
+        body: `${monthName} ${year} rollup is available.`,
+        url: '/attendance',
+      }).catch((err) => devError(env, '[reminders] monthly_report_ready failed', err)),
+    ),
+  );
   devLog(env, `[reminders] monthly_report_ready sent to ${recipients.results?.length ?? 0} recipients`);
 }
 
@@ -151,14 +157,16 @@ export async function sendAbsenceNoticePush(env: Env, notice: AbsenceNoticeInput
     title = `${user.name} won't be in today`;
   }
 
-  for (const r of recipients.results ?? []) {
-    await sendTypedNotification(env, {
-      userId: r.id,
-      type: 'absence_notice',
-      title,
-      body,
-      url: '/attendance',
-    }).catch((err) => devError(env, '[reminders] absence_notice failed', err));
-  }
+  await Promise.all(
+    (recipients.results ?? []).map((r) =>
+      sendTypedNotification(env, {
+        userId: r.id,
+        type: 'absence_notice',
+        title,
+        body,
+        url: '/attendance',
+      }).catch((err) => devError(env, '[reminders] absence_notice failed', err)),
+    ),
+  );
   devLog(env, `[reminders] absence_notice for ${user.name} sent to ${recipients.results?.length ?? 0} recipients`);
 }
