@@ -49,6 +49,9 @@ app.route('/api/auth', authRoutes);
 app.route('/api/badges', badgeRoutes);
 app.get('/badge/:code', serveBadgePage);
 app.post('/api/telegram/webhook', telegramWebhook);
+
+// Protected routes
+app.use('/api/*', authMiddleware);
 app.get('/api/photos/visitors/:id', async (c) => {
   const visitorId = c.req.param('id');
   const object = await c.env.STORAGE.get(`photos/visitors/${visitorId}.jpg`);
@@ -67,9 +70,6 @@ app.get('/api/photos/clock/:id', async (c) => {
   headers.set('Cache-Control', 'public, max-age=3600');
   return new Response(object.body, { headers });
 });
-
-// Protected routes
-app.use('/api/*', authMiddleware);
 app.route('/api/visitors', visitorRoutes);
 app.route('/api/visits', visitRoutes);
 app.route('/api/officers', officerRoutes);
