@@ -17,8 +17,13 @@ export async function sendClockReminders(env: Env): Promise<void> {
        AND NOT EXISTS (
          SELECT 1 FROM clock_records c
          WHERE c.user_id = u.id AND c.type = 'clock_in' AND DATE(c.timestamp) = ?
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM absence_notices a
+         WHERE a.user_id = u.id
+           AND ? BETWEEN a.notice_date AND COALESCE(a.expected_return_date, a.notice_date)
        )`
-  ).bind(today).all<{ id: string; name: string }>();
+  ).bind(today, today).all<{ id: string; name: string }>();
 
   for (const u of rows.results ?? []) {
     const firstName = u.name.split(' ')[0] || 'there';
