@@ -13,7 +13,9 @@ export function generateOtp(): string {
 export async function createOtp(email: string, env: Env): Promise<string> {
   const code = generateOtp();
   await env.KV.put(`otp:${email}`, JSON.stringify({ code, attempts: 0 }), { expirationTtl: OTP_TTL });
-  console.log(`[DEV OTP] ${email}: ${code}`);
+  if (env.ENVIRONMENT !== 'production') {
+    console.log(`[DEV OTP] ${email}: ${code}`);
+  }
   return code;
 }
 
@@ -48,7 +50,12 @@ export async function hashPin(pin: string): Promise<string> {
 
 export async function verifyPin(pin: string, storedHash: string): Promise<boolean> {
   const inputHash = await hashPin(pin);
-  return inputHash === storedHash;
+  if (inputHash.length !== storedHash.length) return false;
+  let diff = 0;
+  for (let i = 0; i < inputHash.length; i++) {
+    diff |= inputHash.charCodeAt(i) ^ storedHash.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
 export async function createSession(
