@@ -1,3 +1,5 @@
+import { getToken } from './tokenStore';
+
 const DB_NAME = 'ohcs-queue';
 const DB_VERSION = 1;
 const STORES = ['clock-queue'] as const;
@@ -53,6 +55,7 @@ export async function apiOrQueue<T>(
 ): Promise<ApiOrQueueResult<T>> {
   const idempotency_key = crypto.randomUUID();
   const fullBody = { ...body, idempotency_key };
+  const token = getToken();
   const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
   const url = `${apiBase}/api${endpoint}`;
   let res: Response;
@@ -60,7 +63,10 @@ export async function apiOrQueue<T>(
     res = await fetch(url, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(fullBody),
     });
   } catch {
@@ -70,7 +76,10 @@ export async function apiOrQueue<T>(
       endpoint: url,
       method: 'POST',
       body: JSON.stringify(fullBody),
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       createdAt: Date.now(),
     });
     if ('serviceWorker' in navigator && 'SyncManager' in window) {
