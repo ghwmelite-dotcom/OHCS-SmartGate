@@ -9,10 +9,13 @@ export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: Sessi
 
 // OHCS Building geofence — exact location (Office of The Head of Civil Service, Accra)
 const GEOFENCE = {
-  lat: 5.5526925,
-  lng: -0.1974803,
-  radiusMeters: 150,
+  lat: 5.55269,
+  lng: -0.19752,
+  radiusMeters: 75,
 };
+
+// Reject a clock-in if the device can't localise to better than this many metres.
+const MAX_GPS_ACCURACY_METERS = 200;
 
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -28,12 +31,13 @@ const clockSchema = z.object({
   type: z.enum(['clock_in', 'clock_out']),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
+  accuracy: z.number().min(0).optional(),
   idempotency_key: z.string().min(1).max(100).optional(),
 });
 
 clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
   const session = c.get('session');
-  const { type, latitude, longitude, idempotency_key } = c.req.valid('json');
+  const { type, latitude, longitude, accuracy, idempotency_key } = c.req.valid('json');
 
   // Idempotency check — return existing record immediately (before geofence re-validation)
   if (idempotency_key) {
@@ -56,12 +60,30 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     }
   }
 
-  // Check geofence
+  // Reject clock-in if GPS is too imprecise to make a reliable call.
+  if (accuracy !== undefined && accuracy > MAX_GPS_ACCURACY_METERS) {
+    return error(
+      c,
+      'GPS_TOO_IMPRECISE',
+      `GPS accuracy is too poor (\u00B1${Math.round(accuracy)}m). Move somewhere with clearer sky and try again.`,
+      400,
+    );
+  }
+
+  // Check geofence — generous with GPS drift: if distance minus reported
+  // accuracy is within the radius, treat the user as inside.
   const distance = haversineDistance(latitude, longitude, GEOFENCE.lat, GEOFENCE.lng);
-  const withinGeofence = distance <= GEOFENCE.radiusMeters;
+  const acc = accuracy && accuracy > 0 ? accuracy : 0;
+  const withinGeofence = distance <= GEOFENCE.radiusMeters || distance - acc <= GEOFENCE.radiusMeters;
 
   if (!withinGeofence) {
-    return error(c, 'OUTSIDE_GEOFENCE', `You are ${Math.round(distance)}m from OHCS. Please be within ${GEOFENCE.radiusMeters}m to clock ${type === 'clock_in' ? 'in' : 'out'}.`, 400);
+    const accStr = acc > 0 ? ` (GPS accuracy \u00B1${Math.round(acc)}m)` : '';
+    return error(
+      c,
+      'OUTSIDE_GEOFENCE',
+      `You are ${Math.round(distance)}m from OHCS${accStr}. Please be within ${GEOFENCE.radiusMeters}m to clock ${type === 'clock_in' ? 'in' : 'out'}.`,
+      400,
+    );
   }
 
   // Check if already clocked in/out today

@@ -44,7 +44,7 @@ export function ClockPage() {
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [clockType, setClockType] = useState<'clock_in' | 'clock_out'>('clock_in');
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [result, setResult] = useState<ClockResult | null>(null);
@@ -64,7 +64,7 @@ export function ClockPage() {
   const canClockOut = status?.clocked_in && !status?.clocked_out;
 
   const clockMutation = useMutation({
-    mutationFn: async (data: { type: string; latitude: number; longitude: number }) => {
+    mutationFn: async (data: { type: string; latitude: number; longitude: number; accuracy: number }) => {
       return await apiOrQueue<ClockResult>('clock-queue', '/clock', data);
     },
     onSuccess: async (res: ApiOrQueueResult<ClockResult>) => {
@@ -125,7 +125,7 @@ export function ClockPage() {
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
         startCamera(type);
       },
       (err) => {
@@ -187,7 +187,7 @@ export function ClockPage() {
     if (!location) return;
     if (photo) setPhotoBlob(photo);
     setPhase('submitting');
-    clockMutation.mutate({ type: clockType, latitude: location.lat, longitude: location.lng });
+    clockMutation.mutate({ type: clockType, latitude: location.lat, longitude: location.lng, accuracy: location.accuracy });
   }
 
   function resetState() {
