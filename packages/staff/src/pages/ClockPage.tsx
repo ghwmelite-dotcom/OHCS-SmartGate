@@ -235,20 +235,25 @@ export function ClockPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center px-5 py-6 safe-area-bottom">
+      <div className="relative flex-1 flex flex-col items-center px-5 py-6 safe-area-bottom kente-weave" style={{ ['--kente-opacity' as unknown as string]: '0.025' }}>
         {/* Greeting */}
-        <p className="text-[14px] text-muted">{greeting},</p>
-        <h2 className="text-[24px] font-bold text-foreground mt-0.5" style={{ fontFamily: "'Playfair Display', serif" }}>
-          {user?.name}
+        <p className="text-[11px] text-accent-warm tracking-[0.2em] uppercase font-semibold">{greeting}</p>
+        <h2 className="text-[28px] font-bold text-foreground mt-1 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <LetterReveal text={user?.name ?? ''} />
         </h2>
+        <span className="underline-flourish w-16 mt-1.5" />
 
         {/* Streak */}
         {status && status.streak > 0 && (
-          <div className="flex items-center gap-2 mt-3 px-4 py-1.5 bg-accent/10 rounded-full">
-            <Flame className="h-4 w-4 text-accent-warm" />
+          <div className="flex items-center gap-2 mt-4 px-4 py-1.5 bg-accent/10 border border-accent/20 rounded-full">
+            <span className="flex items-center gap-0.5">
+              {Array.from({ length: Math.min(5, status.streak) }).map((_, i) => (
+                <Flame key={i} className="h-3.5 w-3.5 text-accent-warm ember" style={{ ['--i' as unknown as string]: i }} />
+              ))}
+            </span>
             <span className="text-[13px] font-semibold text-accent-warm">{status.streak} day streak</span>
             {status.longest_streak > status.streak && (
-              <span className="text-[11px] text-muted">
+              <span className="text-[11px] text-muted ml-1">
                 <Trophy className="h-3 w-3 inline" /> Best: {status.longest_streak}
               </span>
             )}
@@ -256,9 +261,13 @@ export function ClockPage() {
         )}
 
         {/* Today's status */}
-        <div className="w-full max-w-sm mt-6 bg-surface rounded-2xl border border-border shadow-sm p-4">
+        <div className="gold-frame w-full max-w-sm mt-6 bg-surface rounded-2xl border border-border shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-75 animate-ping" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+              </span>
               <Clock className="h-4 w-4 text-muted" />
               <span className="text-[13px] font-medium text-muted">Today</span>
             </div>
@@ -268,15 +277,21 @@ export function ClockPage() {
           </div>
           <div className="flex gap-4 mt-3">
             <div className="flex-1 text-center">
-              <p className="text-[11px] text-muted uppercase tracking-wide">In</p>
-              <p className={cn('text-[16px] font-bold mt-0.5', status?.clocked_in ? 'text-success' : 'text-muted-foreground')}>
+              <p className="text-[10px] text-muted uppercase tracking-[0.2em]">In</p>
+              <p className={cn(
+                'text-[18px] font-bold mt-1 transition-all duration-500',
+                status?.clocked_in ? 'text-success' : 'text-muted-foreground',
+              )} style={{ fontFamily: "'Playfair Display', serif" }}>
                 {status?.clock_in_time ? formatTime(status.clock_in_time) : '--:--'}
               </p>
             </div>
-            <div className="w-[1px] bg-border" />
+            <div className="w-[1px] bg-gradient-to-b from-transparent via-border to-transparent" />
             <div className="flex-1 text-center">
-              <p className="text-[11px] text-muted uppercase tracking-wide">Out</p>
-              <p className={cn('text-[16px] font-bold mt-0.5', status?.clocked_out ? 'text-foreground' : 'text-muted-foreground')}>
+              <p className="text-[10px] text-muted uppercase tracking-[0.2em]">Out</p>
+              <p className={cn(
+                'text-[18px] font-bold mt-1 transition-all duration-500',
+                status?.clocked_out ? 'text-foreground' : 'text-muted-foreground',
+              )} style={{ fontFamily: "'Playfair Display', serif" }}>
                 {status?.clock_out_time ? formatTime(status.clock_out_time) : '--:--'}
               </p>
             </div>
