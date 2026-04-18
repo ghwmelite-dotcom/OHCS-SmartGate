@@ -1,16 +1,16 @@
-import appliedMigrations from './migration-applied-migrations.sql?raw';
-import attendance from './migration-attendance.sql?raw';
-import grade from './migration-grade.sql?raw';
-import hostManual from './migration-host-manual.sql?raw';
-import phase2 from './migration-phase2.sql?raw';
-import photos from './migration-photos.sql?raw';
-import pinAuth from './migration-pin-auth.sql?raw';
-import pinAcknowledged from './migration-pin-acknowledged.sql?raw';
-import pushSubscriptions from './migration-push-subscriptions.sql?raw';
-import clockIdempotency from './migration-clock-idempotency.sql?raw';
-import visitsIdempotency from './migration-visits-idempotency.sql?raw';
-import absenceNotices from './migration-absence-notices.sql?raw';
-import notificationsIndex from './migration-notifications-index.sql?raw';
+import appliedMigrations from './migration-applied-migrations.sql';
+import attendance from './migration-attendance.sql';
+import grade from './migration-grade.sql';
+import hostManual from './migration-host-manual.sql';
+import phase2 from './migration-phase2.sql';
+import photos from './migration-photos.sql';
+import pinAuth from './migration-pin-auth.sql';
+import pinAcknowledged from './migration-pin-acknowledged.sql';
+import pushSubscriptions from './migration-push-subscriptions.sql';
+import clockIdempotency from './migration-clock-idempotency.sql';
+import visitsIdempotency from './migration-visits-idempotency.sql';
+import absenceNotices from './migration-absence-notices.sql';
+import notificationsIndex from './migration-notifications-index.sql';
 
 export const MIGRATIONS: Array<{ filename: string; sql: string }> = [
   { filename: 'migration-applied-migrations.sql', sql: appliedMigrations },

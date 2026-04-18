@@ -3,6 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 
+rules = [
+  { type = "Text", globs = ["**/*.sql"], fallthrough = true },
+]
+
 # Attendance summaries — Ghana time (UTC+0)
 # Clock reminder: 8:30 AM Mon-Fri | Daily: 9 AM Mon-Fri | Weekly: 4 PM Friday | Monthly: 9 AM 1st | Yearly: 9 AM Jan 1
 [triggers]
