@@ -441,12 +441,12 @@ export function ClockPage() {
         </div>
 
         {/* Footer motto */}
-        <div className="flex items-center gap-3 mt-6" style={{ color: '#D4A017' }}>
-          <span className="text-[9px] tracking-[0.2em] uppercase font-semibold opacity-60">Loyalty</span>
-          <div className="w-1 h-1 rounded-full bg-[#D4A017] opacity-40" />
-          <span className="text-[9px] tracking-[0.2em] uppercase font-semibold opacity-60">Excellence</span>
-          <div className="w-1 h-1 rounded-full bg-[#D4A017] opacity-40" />
-          <span className="text-[9px] tracking-[0.2em] uppercase font-semibold opacity-60">Service</span>
+        <div className="relative flex items-center gap-3 mt-6 shimmer-sweep py-2 px-3 rounded-full" style={{ color: '#D4A017' }}>
+          <span className="text-[9px] tracking-[0.25em] uppercase font-semibold opacity-70 animate-fade-in stagger-1">Loyalty</span>
+          <div className="w-1 h-1 rounded-full bg-[#D4A017] opacity-50 animate-fade-in stagger-2" />
+          <span className="text-[9px] tracking-[0.25em] uppercase font-semibold opacity-70 animate-fade-in stagger-3">Excellence</span>
+          <div className="w-1 h-1 rounded-full bg-[#D4A017] opacity-50 animate-fade-in stagger-4" />
+          <span className="text-[9px] tracking-[0.25em] uppercase font-semibold opacity-70 animate-fade-in stagger-5">Service</span>
         </div>
       </div>
     </div>
