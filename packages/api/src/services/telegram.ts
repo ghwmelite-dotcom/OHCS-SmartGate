@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { escapeHtml } from '../lib/html';
 
 interface SendMessageParams {
   chatId: string;
@@ -40,13 +41,13 @@ export function formatVisitorArrivalMessage(visitor: {
   const lines = [
     '\u{1F4CB} <b>Visitor Arrival \u2014 OHCS SmartGate</b>',
     '',
-    `<b>${visitor.first_name} ${visitor.last_name}</b>${visitor.organisation ? ` (${visitor.organisation})` : ''}`,
+    `<b>${escapeHtml(visitor.first_name)} ${escapeHtml(visitor.last_name)}</b>${visitor.organisation ? ` (${escapeHtml(visitor.organisation)})` : ''}`,
   ];
 
-  if (visitor.purpose_raw) lines.push(`Purpose: ${visitor.purpose_raw}`);
-  if (visitor.badge_code) lines.push(`Badge: <code>${visitor.badge_code}</code>`);
+  if (visitor.purpose_raw) lines.push(`Purpose: ${escapeHtml(visitor.purpose_raw)}`);
+  if (visitor.badge_code) lines.push(`Badge: <code>${escapeHtml(visitor.badge_code)}</code>`);
   lines.push('');
-  lines.push(`Checked in at ${time}${visitor.directorate_abbr ? ` \u2022 ${visitor.directorate_abbr} Reception` : ''}`);
+  lines.push(`Checked in at ${time}${visitor.directorate_abbr ? ` \u2022 ${escapeHtml(visitor.directorate_abbr)} Reception` : ''}`);
 
   return lines.join('\n');
 }

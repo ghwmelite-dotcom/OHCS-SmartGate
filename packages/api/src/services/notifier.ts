@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { sendTelegramMessage } from './telegram';
 import { sendWebPush, type PushTarget } from '../lib/webpush';
+import { escapeHtml } from '../lib/html';
 
 const PERSONAL_CATEGORIES = ['personal_visit'];
 
@@ -29,9 +30,9 @@ function formatVisitorMessage(data: VisitNotifyData, recipientType: 'host' | 'di
     return [
       `\u{1F464} <b>You have a visitor</b>`,
       '',
-      `<b>${data.first_name} ${data.last_name}</b>${data.organisation ? ` (${data.organisation})` : ''}`,
-      data.purpose_raw ? `Purpose: ${data.purpose_raw}` : '',
-      data.badge_code ? `Badge: <code>${data.badge_code}</code>` : '',
+      `<b>${escapeHtml(data.first_name)} ${escapeHtml(data.last_name)}</b>${data.organisation ? ` (${escapeHtml(data.organisation)})` : ''}`,
+      data.purpose_raw ? `Purpose: ${escapeHtml(data.purpose_raw)}` : '',
+      data.badge_code ? `Badge: <code>${escapeHtml(data.badge_code)}</code>` : '',
       '',
       `At Reception \u2022 ${time}`,
       '',
@@ -39,13 +40,12 @@ function formatVisitorMessage(data: VisitNotifyData, recipientType: 'host' | 'di
     ].filter(Boolean).join('\n');
   }
 
-  // Director notification — directorate business
   return [
     `\u{1F4CB} <b>Directorate Visitor</b>`,
     '',
-    `<b>${data.first_name} ${data.last_name}</b>${data.organisation ? ` (${data.organisation})` : ''}`,
-    data.purpose_raw ? `Purpose: ${data.purpose_raw}` : '',
-    data.directorate_abbr ? `Directorate: ${data.directorate_abbr}` : '',
+    `<b>${escapeHtml(data.first_name)} ${escapeHtml(data.last_name)}</b>${data.organisation ? ` (${escapeHtml(data.organisation)})` : ''}`,
+    data.purpose_raw ? `Purpose: ${escapeHtml(data.purpose_raw)}` : '',
+    data.directorate_abbr ? `Directorate: ${escapeHtml(data.directorate_abbr)}` : '',
     '',
     `Checked in at ${time}`,
     '',
@@ -196,7 +196,7 @@ async function createInAppNotification(
   env: Env,
   customBody?: string
 ): Promise<void> {
-  const title = `Visitor: ${data.first_name} ${data.last_name}`;
+  const title = `Visitor: ${escapeHtml(data.first_name)} ${escapeHtml(data.last_name)}`;
   const body = customBody ?? `${data.organisation ? `From ${data.organisation} \u2014 ` : ''}${data.purpose_raw || 'No purpose stated'}`;
   const url = data.visit_id ? `/visit/${data.visit_id}` : '/';
   await sendTypedNotification(env, {
