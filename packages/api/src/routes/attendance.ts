@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, SessionData } from '../types';
 import { success, error } from '../lib/response';
+import { sendAbsenceNoticePush, type AbsenceNoticeInput } from '../services/reminders';
 
 export const attendanceRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
@@ -201,4 +202,55 @@ attendanceRoutes.post('/leave/:id/reject', async (c) => {
   ).bind(session.userId, id).run();
 
   return success(c, { message: 'Leave rejected' });
+});
+
+const absenceNoticeSchema = z.object({
+  reason: z.enum(['sick', 'family_emergency', 'transport', 'other']),
+  note: z.string().max(200).optional(),
+  expected_return_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+attendanceRoutes.post('/absence-notice', zValidator('json', absenceNoticeSchema), async (c) => {
+  const session = c.get('session');
+  const body = c.req.valid('json');
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (body.expected_return_date && body.expected_return_date < today) {
+    return error(c, 'INVALID_DATE', 'expected_return_date cannot be in the past', 400);
+  }
+
+  const id = crypto.randomUUID().replace(/-/g, '');
+  await c.env.DB.prepare(
+    `INSERT INTO absence_notices (id, user_id, reason, note, notice_date, expected_return_date)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(id, session.userId, body.reason, body.note ?? null, today, body.expected_return_date ?? null).run();
+
+  const notice: AbsenceNoticeInput = {
+    id,
+    user_id: session.userId,
+    reason: body.reason,
+    note: body.note ?? null,
+    notice_date: today,
+    expected_return_date: body.expected_return_date ?? null,
+  };
+
+  c.executionCtx.waitUntil(sendAbsenceNoticePush(c.env, notice));
+
+  return success(c, notice);
+});
+
+attendanceRoutes.get('/absence-notice/today', async (c) => {
+  const session = c.get('session');
+  const today = new Date().toISOString().slice(0, 10);
+
+  const row = await c.env.DB.prepare(
+    `SELECT id, user_id, reason, note, notice_date, expected_return_date, created_at
+     FROM absence_notices
+     WHERE user_id = ?
+       AND ? BETWEEN notice_date AND COALESCE(expected_return_date, notice_date)
+     ORDER BY created_at DESC
+     LIMIT 1`
+  ).bind(session.userId, today).first();
+
+  return success(c, row ?? null);
 });
