@@ -1,7 +1,9 @@
 {
   "name": "ohcs-smartgate",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev:api": "npm run dev -w packages/api",
     "dev:web": "npm run dev -w packages/web",
@@ -10,5 +12,11 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "docx": "^9.6.1"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5"
   }
 }
