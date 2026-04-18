@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "OHCS SmartGate — Visitor Management System",
   "short_name": "SmartGate",
   "description": "Visitor Management System for the Office of the Head of Civil Service, Ghana",
@@ -10,6 +11,12 @@
   "theme_color": "#1A4D2E",
   "categories": ["business", "productivity"],
   "icons": [
+    {
+      "src": "/icons/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
