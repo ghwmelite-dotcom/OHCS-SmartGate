@@ -1,3 +1,5 @@
+import { getToken } from './tokenStore';
+
 const API_BASE = import.meta.env.PROD
   ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev/api'
   : '/api';
@@ -12,10 +14,16 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string> | undefined),
+  };
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers,
   });
   const json = await res.json() as ApiResponse<T>;
   if (!res.ok || json.error) {
