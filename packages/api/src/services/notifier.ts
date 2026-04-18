@@ -4,7 +4,7 @@ import { sendWebPush, type PushTarget } from '../lib/webpush';
 
 const PERSONAL_CATEGORIES = ['personal_visit'];
 
-const PUSH_WHITELIST = new Set(['visitor_arrival', 'clock_reminder', 'late_clock_alert', 'monthly_report_ready']);
+const PUSH_WHITELIST = new Set(['visitor_arrival', 'clock_reminder', 'late_clock_alert', 'monthly_report_ready', 'absence_notice']);
 
 interface VisitNotifyData {
   visit_id: string;
