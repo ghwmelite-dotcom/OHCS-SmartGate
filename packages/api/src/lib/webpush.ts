@@ -94,11 +94,24 @@ export async function encryptPayload(payload: Uint8Array, p256dhB64: string, aut
   return concat(salt, rs, idlen, ephemPublicRaw, ciphertext);
 }
 
+async function trackPushStatus(env: { KV: KVNamespace }, status: number): Promise<void> {
+  const date = new Date().toISOString().slice(0, 10);
+  const key = `push-stat:${date}:${status}`;
+  try {
+    const raw = await env.KV.get(key);
+    const n = raw ? parseInt(raw, 10) : 0;
+    await env.KV.put(key, String(n + 1), { expirationTtl: 8 * 86400 });
+  } catch {
+    // Swallow — counters are best-effort.
+  }
+}
+
 export interface WebPushEnv {
   VAPID_PUBLIC_X: string;
   VAPID_PUBLIC_Y: string;
   VAPID_PRIVATE_D: string;
   VAPID_SUBJECT: string;
+  KV: KVNamespace;
 }
 
 export interface PushTarget {
@@ -110,6 +123,7 @@ export interface PushTarget {
 export async function sendWebPush(target: PushTarget, payload: object, env: WebPushEnv): Promise<number> {
   if (!env.VAPID_PUBLIC_X || !env.VAPID_PRIVATE_D) {
     console.warn('[webpush] VAPID keys not set; skipping');
+    await trackPushStatus(env, 0);
     return 0;
   }
   const url = new URL(target.endpoint);
@@ -128,5 +142,6 @@ export async function sendWebPush(target: PushTarget, payload: object, env: WebP
     },
     body: encrypted as BodyInit,
   });
+  await trackPushStatus(env, res.status);
   return res.status;
 }
