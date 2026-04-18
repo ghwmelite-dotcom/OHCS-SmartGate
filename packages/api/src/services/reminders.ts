@@ -96,3 +96,63 @@ export async function sendMonthlyReportReady(env: Env): Promise<void> {
   }
   console.log(`[reminders] monthly_report_ready sent to ${recipients.results?.length ?? 0} recipients`);
 }
+
+export interface AbsenceNoticeInput {
+  id: string;
+  user_id: string;
+  reason: 'sick' | 'family_emergency' | 'transport' | 'other';
+  note: string | null;
+  notice_date: string;
+  expected_return_date: string | null;
+}
+
+const REASON_LABELS: Record<AbsenceNoticeInput['reason'], string> = {
+  sick: 'Sick',
+  family_emergency: 'Family emergency',
+  transport: 'Transport',
+  other: 'Absent',
+};
+
+/**
+ * Fired from POST /attendance/absence-notice.
+ * Notifies directorate directors + superadmins that a staff member has
+ * reported an absence for today (and possibly beyond).
+ */
+export async function sendAbsenceNoticePush(env: Env, notice: AbsenceNoticeInput): Promise<void> {
+  const user = await env.DB.prepare(
+    'SELECT name, directorate_id FROM users WHERE id = ?'
+  ).bind(notice.user_id).first<{ name: string; directorate_id: string | null }>();
+  if (!user) return;
+
+  const recipients = await env.DB.prepare(
+    `SELECT id FROM users
+     WHERE is_active = 1 AND id != ?
+       AND (
+         (role = 'director' AND directorate_id = ?)
+         OR role = 'superadmin'
+       )`
+  ).bind(notice.user_id, user.directorate_id ?? '').all<{ id: string }>();
+
+  const label = REASON_LABELS[notice.reason];
+  const body = notice.note ? `${label} — ${notice.note}` : label;
+
+  let title: string;
+  if (notice.expected_return_date) {
+    const rd = new Date(notice.expected_return_date + 'T00:00:00Z');
+    const dateFmt = rd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    title = `${user.name} out through ${dateFmt}`;
+  } else {
+    title = `${user.name} won't be in today`;
+  }
+
+  for (const r of recipients.results ?? []) {
+    await sendTypedNotification(env, {
+      userId: r.id,
+      type: 'absence_notice',
+      title,
+      body,
+      url: '/attendance',
+    }).catch((err) => console.error('[reminders] absence_notice failed', err));
+  }
+  console.log(`[reminders] absence_notice for ${user.name} sent to ${recipients.results?.length ?? 0} recipients`);
+}
