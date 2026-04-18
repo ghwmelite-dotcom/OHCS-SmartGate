@@ -5,6 +5,7 @@ import { SettingsMenu } from '@/components/SettingsMenu';
 import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
 import { AbsenceNoticeButton } from '@/components/AbsenceNoticeButton';
 import { LetterReveal } from '@/components/LetterReveal';
+import { MagneticButton } from '@/components/MagneticButton';
 import { api } from '@/lib/api';
 import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, formatTime } from '@/lib/utils';
@@ -305,24 +306,24 @@ export function ClockPage() {
           {phase === 'idle' && (
             <div className="space-y-4 w-full">
               {canClockIn && (
-                <button
+                <MagneticButton
                   onClick={() => startClock('clock_in')}
-                  className="w-full h-20 bg-primary text-white rounded-3xl flex items-center justify-center gap-3 text-[18px] font-bold shadow-xl shadow-primary/25 hover:bg-primary-light active:scale-[0.98] transition-all"
+                  className="group w-full h-20 bg-primary text-white rounded-3xl flex items-center justify-center gap-3 text-[18px] font-bold shadow-[0_14px_30px_rgba(26,77,46,0.3)] ring-1 ring-[#D4A017]/30 hover:ring-[#D4A017]/60 hover:shadow-[0_18px_40px_rgba(212,160,23,0.25)] transition-[box-shadow,ring] duration-300"
                   style={{ fontFamily: "'Playfair Display', serif" }}
                 >
-                  <LogIn className="h-7 w-7" />
+                  <LogIn className="h-7 w-7 transition-transform duration-300 group-hover:rotate-[15deg]" />
                   Clock In
-                </button>
+                </MagneticButton>
               )}
               {canClockOut && (
-                <button
+                <MagneticButton
                   onClick={() => startClock('clock_out')}
-                  className="w-full h-20 bg-secondary text-white rounded-3xl flex items-center justify-center gap-3 text-[18px] font-bold shadow-xl shadow-secondary/25 hover:bg-secondary-light active:scale-[0.98] transition-all"
+                  className="group w-full h-20 bg-secondary text-white rounded-3xl flex items-center justify-center gap-3 text-[18px] font-bold shadow-[0_14px_30px_rgba(139,26,26,0.3)] ring-1 ring-[#D4A017]/30 hover:ring-[#D4A017]/60 hover:shadow-[0_18px_40px_rgba(212,160,23,0.25)] transition-[box-shadow,ring] duration-300"
                   style={{ fontFamily: "'Playfair Display', serif" }}
                 >
-                  <LogOut className="h-7 w-7" />
+                  <LogOut className="h-7 w-7 transition-transform duration-300 group-hover:rotate-[15deg]" />
                   Clock Out
-                </button>
+                </MagneticButton>
               )}
               {!canClockIn && !canClockOut && (
                 <div className="text-center py-8">
