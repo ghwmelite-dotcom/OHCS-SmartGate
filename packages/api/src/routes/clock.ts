@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Env, SessionData } from '../types';
 import { success, error } from '../lib/response';
 import { sendLateClockAlert } from '../services/reminders';
+import { devLog } from '../lib/log';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
@@ -149,7 +150,7 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     'SELECT name, staff_id, current_streak, longest_streak FROM users WHERE id = ?'
   ).bind(session.userId).first<{ name: string; staff_id: string; current_streak: number; longest_streak: number }>();
 
-  console.log(`[CLOCK] ${user?.name} (${user?.staff_id}) — ${type} at ${new Date().toISOString()}`);
+  devLog(c.env, `[CLOCK] ${user?.name} (${user?.staff_id}) — ${type} at ${new Date().toISOString()}`);
 
   return success(c, {
     id,

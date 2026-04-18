@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { sendTelegramMessage } from './telegram';
 import { sendWebPush, type PushTarget } from '../lib/webpush';
 import { escapeHtml } from '../lib/html';
+import { devError } from '../lib/log';
 
 const PERSONAL_CATEGORIES = ['personal_visit'];
 
@@ -183,7 +184,7 @@ export async function sendTypedNotification(env: Env, opts: {
     for (const s of subs.results ?? []) {
       const target: PushTarget = { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth };
       sendWebPush(target, { title: opts.title, body: opts.body, url: opts.url, type: opts.type }, env).catch((err) => {
-        console.error('[webpush] send failed', err);
+        devError(env, '[webpush] send failed', err);
       });
     }
   }

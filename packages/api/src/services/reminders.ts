@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { sendTypedNotification } from './notifier';
+import { devLog, devError } from '../lib/log';
 
 const LATE_THRESHOLD_MIN_OF_DAY = 8 * 60 + 30; // 08:30 UTC (Ghana time)
 
@@ -33,9 +34,9 @@ export async function sendClockReminders(env: Env): Promise<void> {
       title: "Don't forget to clock in",
       body: `Have a good day, ${firstName}.`,
       url: '/',
-    }).catch((err) => console.error('[reminders] clock_reminder failed', err));
+    }).catch((err) => devError(env, '[reminders] clock_reminder failed', err));
   }
-  console.log(`[reminders] sent clock_reminder to ${rows.results?.length ?? 0} users`);
+  devLog(env, `[reminders] sent clock_reminder to ${rows.results?.length ?? 0} users`);
 }
 
 /**
@@ -70,9 +71,9 @@ export async function sendLateClockAlert(env: Env, userId: string, clockedAtISO:
       title: `${clocker.name} clocked in late`,
       body: `Clocked in at ${hh}:${mm} (${minutesLate} minutes late).`,
       url: '/attendance',
-    }).catch((err) => console.error('[reminders] late_clock_alert failed', err));
+    }).catch((err) => devError(env, '[reminders] late_clock_alert failed', err));
   }
-  console.log(`[reminders] late_clock_alert for ${clocker.name} sent to ${recipients.results?.length ?? 0} recipients`);
+  devLog(env, `[reminders] late_clock_alert for ${clocker.name} sent to ${recipients.results?.length ?? 0} recipients`);
 }
 
 /**
@@ -97,9 +98,9 @@ export async function sendMonthlyReportReady(env: Env): Promise<void> {
       title: 'Monthly attendance summary ready',
       body: `${monthName} ${year} rollup is available.`,
       url: '/attendance',
-    }).catch((err) => console.error('[reminders] monthly_report_ready failed', err));
+    }).catch((err) => devError(env, '[reminders] monthly_report_ready failed', err));
   }
-  console.log(`[reminders] monthly_report_ready sent to ${recipients.results?.length ?? 0} recipients`);
+  devLog(env, `[reminders] monthly_report_ready sent to ${recipients.results?.length ?? 0} recipients`);
 }
 
 export interface AbsenceNoticeInput {
@@ -157,7 +158,7 @@ export async function sendAbsenceNoticePush(env: Env, notice: AbsenceNoticeInput
       title,
       body,
       url: '/attendance',
-    }).catch((err) => console.error('[reminders] absence_notice failed', err));
+    }).catch((err) => devError(env, '[reminders] absence_notice failed', err));
   }
-  console.log(`[reminders] absence_notice for ${user.name} sent to ${recipients.results?.length ?? 0} recipients`);
+  devLog(env, `[reminders] absence_notice for ${user.name} sent to ${recipients.results?.length ?? 0} recipients`);
 }
