@@ -55,17 +55,16 @@ export async function apiOrQueue<T>(
   const fullBody = { ...body, idempotency_key };
   const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
   const url = `${apiBase}/api${endpoint}`;
+  let res: Response;
   try {
-    const res = await fetch(url, {
+    res = await fetch(url, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fullBody),
     });
-    if (!res.ok) throw new Error(`${res.status}`);
-    const parsed = await res.json() as { data: T };
-    return { ok: true, data: parsed.data };
   } catch {
+    // Network failure (TypeError "Failed to fetch"). Queue for retry.
     await enqueue(tag, {
       id: idempotency_key,
       endpoint: url,
@@ -84,4 +83,14 @@ export async function apiOrQueue<T>(
     }
     return { queued: true, id: idempotency_key };
   }
+
+  if (!res.ok) {
+    // Server responded with an HTTP error — NOT a network failure.
+    // Propagate so the caller's onError can surface the real message.
+    const errBody = await res.json().catch(() => ({})) as { error?: { message?: string } };
+    throw new Error(errBody?.error?.message ?? `Request failed (${res.status})`);
+  }
+
+  const parsed = await res.json() as { data: T };
+  return { ok: true, data: parsed.data };
 }

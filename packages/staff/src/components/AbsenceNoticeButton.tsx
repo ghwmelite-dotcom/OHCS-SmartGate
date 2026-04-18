@@ -33,8 +33,8 @@ export function AbsenceNoticeButton() {
 
   if (notice) {
     return (
-      <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 text-white/60 text-[12px] font-medium">
-        <Check className="h-3.5 w-3.5" />
+      <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-border text-muted-foreground text-[12px] font-medium">
+        <Check className="h-3.5 w-3.5 text-success" />
         Reported absence today · {REASON_LABELS[notice.reason]}
       </div>
     );
@@ -45,9 +45,9 @@ export function AbsenceNoticeButton() {
       <button
         type="button"
         onClick={() => setShowModal(true)}
-        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 text-white/60 hover:text-white hover:bg-white/5 text-[12px] font-medium transition-colors"
+        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-surface text-muted-foreground hover:text-foreground hover:border-muted text-[13px] font-semibold transition-colors shadow-sm"
       >
-        <AlertTriangle className="h-3.5 w-3.5" />
+        <AlertTriangle className="h-4 w-4" />
         Can't make it today?
       </button>
       {showModal && <AbsenceNoticeModal onClose={() => setShowModal(false)} />}
