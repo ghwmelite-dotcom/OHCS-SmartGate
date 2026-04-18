@@ -4,6 +4,7 @@ import { PinChangeButton } from '@/hooks/usePinChange';
 import { SettingsMenu } from '@/components/SettingsMenu';
 import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
 import { AbsenceNoticeButton } from '@/components/AbsenceNoticeButton';
+import { LetterReveal } from '@/components/LetterReveal';
 import { api } from '@/lib/api';
 import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, formatTime } from '@/lib/utils';
@@ -206,22 +207,30 @@ export function ClockPage() {
     <div className="min-h-screen bg-background flex flex-col">
       {showFirstLoginPrompt && <FirstLoginPinPrompt />}
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #1A4D2E, #0F2E1B)' }}>
+      <div className="relative kente-weave shimmer-sweep" style={{ background: 'linear-gradient(135deg, #1A4D2E, #0F2E1B)', ['--kente-opacity' as unknown as string]: '0.05' }}>
         <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, #CE1126 33%, #FCD116 33% 66%, #006B3F 66%)' }} />
-        <div className="flex items-center justify-between px-5 py-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg overflow-hidden">
-              <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-4">
+            <div className="logo-ring w-[52px] h-[52px] flex-shrink-0">
+              <div className="w-full h-full rounded-full overflow-hidden ring-1 ring-[#D4A017]/30">
+                <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
+              </div>
             </div>
             <div>
-              <h1 className="text-[14px] font-bold text-white" style={{ fontFamily: "'Playfair Display', serif" }}>Staff Attendance</h1>
-              <p className="text-[10px] text-[#D4A017]/70 tracking-wide uppercase">OHCS Clock System</p>
+              <h1 className="text-[16px] font-bold text-white leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Staff Attendance</h1>
+              <p className="text-[10px] text-[#D4A017]/80 tracking-[0.25em] uppercase mt-0.5">OHCS Clock System</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <SettingsMenu />
             <PinChangeButton />
-            <button onClick={logout} className="text-[12px] text-white/50 hover:text-white/80 transition-colors">Sign Out</button>
+            <button
+              onClick={logout}
+              className="group relative text-[12px] text-white/60 hover:text-white transition-colors"
+            >
+              Sign Out
+              <span className="absolute left-0 -bottom-0.5 h-[1px] w-full scale-x-0 bg-[#D4A017] origin-right transition-transform duration-300 group-hover:scale-x-100 group-hover:origin-left" />
+            </button>
           </div>
         </div>
       </div>
