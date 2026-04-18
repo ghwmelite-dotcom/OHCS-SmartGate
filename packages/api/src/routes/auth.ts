@@ -5,6 +5,7 @@ import type { Env, SessionData } from '../types';
 import { LoginSchema, VerifyOtpSchema } from '../lib/validation';
 import { createOtp, verifyOtp, verifyPin, hashPin, createSession, deleteSession, getSession } from '../services/auth';
 import { success, error } from '../lib/response';
+import { rateLimit } from '../lib/rate-limit';
 import { z } from 'zod';
 
 export const authRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
@@ -12,6 +13,11 @@ export const authRoutes = new Hono<{ Bindings: Env; Variables: { session: Sessio
 // Email OTP login (request code)
 authRoutes.post('/login', zValidator('json', LoginSchema), async (c) => {
   const { email } = c.req.valid('json');
+  const rl = await rateLimit(c.env, `login:${email}`, 5, 600);
+  if (!rl.allowed) {
+    c.header('Retry-After', String(rl.retryAfter));
+    return error(c, 'RATE_LIMITED', 'Too many attempts. Please try again later.', 429);
+  }
 
   const user = await c.env.DB.prepare('SELECT id, name, email, role, is_active FROM users WHERE email = ?')
     .bind(email)
@@ -32,6 +38,12 @@ const verifySchema = VerifyOtpSchema.extend({
 });
 
 authRoutes.post('/verify', zValidator('json', verifySchema), async (c) => {
+  const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
+  const rl = await rateLimit(c.env, `verify-ip:${ip}`, 10, 300);
+  if (!rl.allowed) {
+    c.header('Retry-After', String(rl.retryAfter));
+    return error(c, 'RATE_LIMITED', 'Too many attempts. Please try again later.', 429);
+  }
   const { email, code, remember } = c.req.valid('json');
 
   const valid = await verifyOtp(email, code, c.env);
@@ -73,6 +85,13 @@ const pinLoginSchema = z.object({
 
 authRoutes.post('/pin-login', zValidator('json', pinLoginSchema), async (c) => {
   const { staff_id, pin, remember } = c.req.valid('json');
+  const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
+  const rlId = await rateLimit(c.env, `pin:${staff_id.toUpperCase()}`, 10, 300);
+  const rlIp = await rateLimit(c.env, `pin-ip:${ip}`, 30, 300);
+  if (!rlId.allowed || !rlIp.allowed) {
+    c.header('Retry-After', String(Math.max(rlId.retryAfter, rlIp.retryAfter)));
+    return error(c, 'RATE_LIMITED', 'Too many attempts. Please try again later.', 429);
+  }
 
   const user = await c.env.DB.prepare(
     'SELECT id, name, email, role, pin_hash, is_active, pin_acknowledged FROM users WHERE staff_id = ?'
