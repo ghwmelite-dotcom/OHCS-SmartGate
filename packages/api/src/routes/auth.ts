@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
+import { setCookie, deleteCookie } from 'hono/cookie';
 import type { Env, SessionData } from '../types';
 import { LoginSchema, VerifyOtpSchema } from '../lib/validation';
-import { createOtp, verifyOtp, verifyPin, hashPin, createSession, deleteSession, getSession } from '../services/auth';
+import { createOtp, verifyOtp, verifyPin, hashPin, createSession, deleteSession, getSession, readSessionId } from '../services/auth';
 import { success, error } from '../lib/response';
 import { rateLimit } from '../lib/rate-limit';
 import { z } from 'zod';
@@ -73,7 +73,15 @@ authRoutes.post('/verify', zValidator('json', verifySchema), async (c) => {
     maxAge: ttl,
   });
 
-  return success(c, { user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  return success(c, {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      session_token: sessionId,
+    },
+  });
 });
 
 // PIN-based login
@@ -134,12 +142,13 @@ authRoutes.post('/pin-login', zValidator('json', pinLoginSchema), async (c) => {
       email: user.email,
       role: user.role,
       pin_acknowledged: user.pin_acknowledged === 1,
+      session_token: sessionId,
     },
   });
 });
 
 authRoutes.post('/logout', async (c) => {
-  const sessionId = getCookie(c, 'session_id');
+  const sessionId = readSessionId(c);
   if (sessionId) {
     await deleteSession(sessionId, c.env);
   }
@@ -154,7 +163,7 @@ const changePinSchema = z.object({
 });
 
 authRoutes.post('/change-pin', zValidator('json', changePinSchema), async (c) => {
-  const sessionId = getCookie(c, 'session_id');
+  const sessionId = readSessionId(c);
   if (!sessionId) return error(c, 'UNAUTHORIZED', 'Not authenticated', 401);
   const session = await getSession(sessionId, c.env);
   if (!session) return error(c, 'UNAUTHORIZED', 'Session expired', 401);
@@ -177,7 +186,7 @@ authRoutes.post('/change-pin', zValidator('json', changePinSchema), async (c) =>
 });
 
 authRoutes.get('/me', async (c) => {
-  const sessionId = getCookie(c, 'session_id');
+  const sessionId = readSessionId(c);
   if (!sessionId) {
     return error(c, 'UNAUTHORIZED', 'Not authenticated', 401);
   }
