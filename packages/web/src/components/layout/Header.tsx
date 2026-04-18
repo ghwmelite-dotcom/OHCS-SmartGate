@@ -3,7 +3,7 @@ import { useThemeStore } from '@/stores/theme';
 import { formatDate } from '@/lib/utils';
 import { NotificationBell } from '../NotificationBell';
 import { SettingsMenu } from '@/components/SettingsMenu';
-import { MapPin, Sun, Moon, Monitor } from 'lucide-react';
+import { MapPin, Sun, Moon, Monitor, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Header() {
@@ -16,13 +16,28 @@ export function Header() {
   ];
 
   return (
-    <header className="h-[60px] bg-surface-warm border-b border-border px-4 md:px-6 flex items-center justify-between shrink-0 relative">
+    <header
+      className="bg-surface-warm border-b border-border px-4 md:px-6 flex items-center justify-between shrink-0 relative"
+      style={{
+        minHeight: '60px',
+        paddingTop: 'max(0px, env(safe-area-inset-top, 0px))',
+      }}
+    >
       {/* Left — location & date */}
       <div className="flex items-center gap-3">
         {/* Mobile: show OHCS logo instead of location text */}
         <div className="lg:hidden flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg overflow-hidden">
-            <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
+          <div className="relative w-8 h-8 flex-shrink-0">
+            <div className="w-full h-full rounded-lg overflow-hidden">
+              <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
+            </div>
+            <div
+              className="absolute -bottom-1 -right-1 w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm"
+              style={{ background: '#D4A017', boxShadow: '0 0 0 1.5px var(--color-surface-warm)' }}
+              aria-hidden="true"
+            >
+              <UserPlus className="h-[8px] w-[8px] text-white" strokeWidth={2.5} />
+            </div>
           </div>
           <span className="text-[15px] font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>SmartGate</span>
         </div>
