@@ -112,3 +112,9 @@ CREATE TABLE IF NOT EXISTS absence_notices (
   created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_absence_notices_user_date ON absence_notices(user_id, notice_date);
+
+CREATE TABLE IF NOT EXISTS applied_migrations (
+    filename   TEXT PRIMARY KEY,
+    hash       TEXT NOT NULL,
+    applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
