@@ -1,3 +1,5 @@
+import type { Context } from 'hono';
+import { getCookie } from 'hono/cookie';
 import type { Env, SessionData } from '../types';
 
 const OTP_TTL = 600;
@@ -81,4 +83,20 @@ export async function getSession(sessionId: string, env: Env): Promise<SessionDa
 
 export async function deleteSession(sessionId: string, env: Env): Promise<void> {
   await env.KV.delete(`session:${sessionId}`);
+}
+
+/**
+ * Read a session ID from either the `session_id` cookie or an
+ * `Authorization: Bearer <id>` header. Cookie wins when both are
+ * present (backward-compatible).
+ */
+export function readSessionId(c: Context): string | null {
+  const cookie = getCookie(c, 'session_id');
+  if (cookie) return cookie;
+  const auth = c.req.header('authorization') ?? '';
+  if (auth.startsWith('Bearer ')) {
+    const token = auth.slice(7).trim();
+    return token.length > 0 ? token : null;
+  }
+  return null;
 }

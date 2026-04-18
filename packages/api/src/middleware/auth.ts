@@ -1,13 +1,12 @@
 import { createMiddleware } from 'hono/factory';
 import type { Env, SessionData } from '../types';
-import { getSession } from '../services/auth';
-import { getCookie } from 'hono/cookie';
+import { getSession, readSessionId } from '../services/auth';
 
 export const authMiddleware = createMiddleware<{
   Bindings: Env;
   Variables: { session: SessionData };
 }>(async (c, next) => {
-  const sessionId = getCookie(c, 'session_id');
+  const sessionId = readSessionId(c);
   if (!sessionId) {
     return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }, 401);
   }
