@@ -1,8 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PinChangeButton } from '@/hooks/usePinChange';
-import { SettingsMenu } from '@/components/SettingsMenu';
 import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
+import { BottomNav } from '@/components/BottomNav';
 import { AbsenceNoticeButton } from '@/components/AbsenceNoticeButton';
 import { LetterReveal } from '@/components/LetterReveal';
 import { MagneticButton } from '@/components/MagneticButton';
@@ -43,7 +42,6 @@ export function ClockPage() {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const showFirstLoginPrompt = user ? !user.pin_acknowledged : false;
-  const logout = useAuthStore((s) => s.logout);
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [clockType, setClockType] = useState<'clock_in' | 'clock_out'>('clock_in');
@@ -211,33 +209,36 @@ export function ClockPage() {
       {/* Header */}
       <div className="relative kente-weave shimmer-sweep" style={{ background: 'linear-gradient(135deg, #1A4D2E, #0F2E1B)', ['--kente-opacity' as unknown as string]: '0.05' }}>
         <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, #CE1126 33%, #FCD116 33% 66%, #006B3F 66%)' }} />
-        <div className="flex items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-4">
-            <div className="logo-ring w-[52px] h-[52px] flex-shrink-0">
-              <div className="w-full h-full rounded-full overflow-hidden ring-1 ring-[#D4A017]/30">
-                <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
-              </div>
+        <div
+          className="flex items-center gap-4 px-5 pb-4"
+          style={{ paddingTop: 'max(1rem, calc(env(safe-area-inset-top, 0px) + 0.25rem))' }}
+        >
+          <div className="logo-ring w-[52px] h-[52px] flex-shrink-0 relative">
+            <div className="w-full h-full rounded-full overflow-hidden ring-1 ring-[#D4A017]/30">
+              <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
             </div>
-            <div>
-              <h1 className="text-[16px] font-bold text-white leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Staff Attendance</h1>
-              <p className="text-[10px] text-[#D4A017]/80 tracking-[0.25em] uppercase mt-0.5">OHCS Clock System</p>
+            <div
+              className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center shadow-sm"
+              style={{ background: '#1A7A3A', boxShadow: '0 0 0 2px #0F2E1B' }}
+              aria-hidden="true"
+            >
+              <Clock className="h-[10px] w-[10px] text-white" strokeWidth={2.5} />
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <SettingsMenu />
-            <PinChangeButton />
-            <button
-              onClick={logout}
-              className="group relative text-[12px] text-white/60 hover:text-white transition-colors"
-            >
-              Sign Out
-              <span className="absolute left-0 -bottom-0.5 h-[1px] w-full scale-x-0 bg-[#D4A017] origin-right transition-transform duration-300 group-hover:scale-x-100 group-hover:origin-left" />
-            </button>
+          <div>
+            <h1 className="text-[16px] font-bold text-white leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Staff Attendance</h1>
+            <p className="text-[10px] text-[#D4A017]/80 tracking-[0.25em] uppercase mt-0.5">OHCS Clock System</p>
           </div>
         </div>
       </div>
 
-      <div className="relative flex-1 flex flex-col items-center px-5 py-6 safe-area-bottom kente-weave" style={{ ['--kente-opacity' as unknown as string]: '0.025' }}>
+      <div
+        className="relative flex-1 flex flex-col items-center px-5 py-6 kente-weave"
+        style={{
+          ['--kente-opacity' as unknown as string]: '0.025',
+          paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px) + 1.5rem)',
+        }}
+      >
         {/* Greeting */}
         <p className="text-[11px] text-accent-warm tracking-[0.2em] uppercase font-semibold">{greeting}</p>
         <h2 className="text-[28px] font-bold text-foreground mt-1 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
@@ -449,6 +450,7 @@ export function ClockPage() {
           <span className="text-[9px] tracking-[0.25em] uppercase font-semibold opacity-70 animate-fade-in stagger-5">Service</span>
         </div>
       </div>
+      <BottomNav />
     </div>
   );
 }
