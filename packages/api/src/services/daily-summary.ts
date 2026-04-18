@@ -35,13 +35,17 @@ async function sendDailyReport(env: Env): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
-  const [totalStaff, clockedIn, lateCount] = await Promise.all([
+  const [totalStaff, clockedIn, lateCount, noticedCount] = await Promise.all([
     env.DB.prepare('SELECT COUNT(*) as c FROM users WHERE is_active = 1').first<{ c: number }>(),
     env.DB.prepare(
       `SELECT COUNT(DISTINCT user_id) as c FROM clock_records WHERE type = 'clock_in' AND DATE(timestamp) = ?`
     ).bind(today).first<{ c: number }>(),
     env.DB.prepare(
       `SELECT COUNT(DISTINCT user_id) as c FROM clock_records WHERE type = 'clock_in' AND DATE(timestamp) = ? AND TIME(timestamp) > '08:30:00'`
+    ).bind(today).first<{ c: number }>(),
+    env.DB.prepare(
+      `SELECT COUNT(DISTINCT user_id) as c FROM absence_notices
+     WHERE ? BETWEEN notice_date AND COALESCE(expected_return_date, notice_date)`
     ).bind(today).first<{ c: number }>(),
   ]);
 
@@ -73,6 +77,7 @@ async function sendDailyReport(env: Env): Promise<void> {
     `\u2705 Present: <b>${present}</b>/${total} (${rate}%)`,
     `\u{1F534} Absent: <b>${absent}</b>`,
     lateCount?.c ? `\u26A0\uFE0F Late: <b>${lateCount.c}</b>` : '',
+    noticedCount?.c ? `\u{1F4DD} Notified absent: <b>${noticedCount.c}</b>` : '',
     '',
     dirLines ? `<b>By Directorate:</b>\n${dirLines}` : '',
     '',
