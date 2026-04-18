@@ -6,6 +6,7 @@ import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
 import { AbsenceNoticeButton } from '@/components/AbsenceNoticeButton';
 import { LetterReveal } from '@/components/LetterReveal';
 import { MagneticButton } from '@/components/MagneticButton';
+import { ConfettiBurst } from '@/components/ConfettiBurst';
 import { api } from '@/lib/api';
 import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, formatTime } from '@/lib/utils';
@@ -386,7 +387,8 @@ export function ClockPage() {
 
           {/* SUCCESS */}
           {phase === 'success' && result && (
-            <div className="text-center space-y-4 w-full animate-fade-in-up">
+            <div className="relative text-center space-y-4 w-full animate-fade-in-up">
+              <ConfettiBurst />
               <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="h-8 w-8 text-success" />
               </div>
