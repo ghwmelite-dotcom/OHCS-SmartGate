@@ -195,17 +195,25 @@ authRoutes.get('/me', async (c) => {
     return error(c, 'UNAUTHORIZED', 'Session expired', 401);
   }
 
-  const row = await c.env.DB.prepare('SELECT pin_acknowledged FROM users WHERE id = ?')
+  // Read name/email/role fresh from DB so edits made in the admin portal
+  // propagate without requiring the user to log out and back in.
+  const row = await c.env.DB.prepare(
+    'SELECT name, email, role, pin_acknowledged, is_active FROM users WHERE id = ?'
+  )
     .bind(session.userId)
-    .first<{ pin_acknowledged: number }>();
+    .first<{ name: string; email: string; role: string; pin_acknowledged: number; is_active: number }>();
+
+  if (!row || row.is_active !== 1) {
+    return error(c, 'UNAUTHORIZED', 'Account disabled or deleted', 401);
+  }
 
   return success(c, {
     user: {
       id: session.userId,
-      name: session.name,
-      email: session.email,
-      role: session.role,
-      pin_acknowledged: (row?.pin_acknowledged ?? 0) === 1,
+      name: row.name,
+      email: row.email,
+      role: row.role,
+      pin_acknowledged: row.pin_acknowledged === 1,
     },
   });
 });

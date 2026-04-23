@@ -1,5 +1,6 @@
 import { getInitials } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { resolvePhotoUrl } from '@/lib/api';
 
 interface VisitorAvatarProps {
   firstName: string;
@@ -16,11 +17,12 @@ const sizeMap = {
 };
 
 export function VisitorAvatar({ firstName, lastName, photoUrl, size = 'md', className }: VisitorAvatarProps) {
-  if (photoUrl) {
+  const resolved = resolvePhotoUrl(photoUrl);
+  if (resolved) {
     return (
       <div className={cn('rounded-xl overflow-hidden shrink-0', sizeMap[size], className)}>
         <img
-          src={photoUrl}
+          src={resolved}
           alt={`${firstName} ${lastName}`}
           className="w-full h-full object-cover"
           onError={(e) => {

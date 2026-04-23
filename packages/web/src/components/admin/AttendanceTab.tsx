@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api, type Directorate } from '@/lib/api';
+import { api, resolvePhotoUrl, type Directorate } from '@/lib/api';
 import { cn, formatTime, formatDate } from '@/lib/utils';
 import { generateCSV, downloadCSV } from '@/lib/csv';
+import { generateAttendancePdf } from '@/lib/pdf';
+import { useAuthStore } from '@/stores/auth';
+import { SettingsModal, type AppSettings } from './SettingsModal';
 import {
   Users, Clock, AlertTriangle, TrendingUp, CheckCircle2,
-  XCircle, Download, Calendar, Building2,
+  XCircle, Download, Calendar, Building2, FileText, Loader2, Search, X, Settings as SettingsIcon,
+  LogOut,
 } from 'lucide-react';
 
 interface TodayOverview {
@@ -14,6 +18,7 @@ interface TodayOverview {
   clocked_out: number;
   not_clocked_in: number;
   late_arrivals: number;
+  early_departures: number;
   attendance_rate: number;
 }
 
@@ -27,6 +32,7 @@ interface AttendanceRecord {
   clock_out_time: string | null;
   clock_in_photo: string | null;
   is_late: number;
+  is_early_departure: number;
   current_streak: number;
 }
 
@@ -42,6 +48,25 @@ export function AttendanceTab() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [dirFilter, setDirFilter] = useState('');
   const [monthlyUser, setMonthlyUser] = useState<{ id: string; name: string } | null>(null);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const currentUser = useAuthStore(s => s.user);
+  const canEditSettings = currentUser?.role === 'superadmin';
+
+  // Ctrl/Cmd+K focuses the search
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const { data: overviewData } = useQuery({
     queryKey: ['attendance', 'today', selectedDate],
@@ -68,26 +93,57 @@ export function AttendanceTab() {
     staleTime: 5 * 60_000,
   });
 
+  const { data: settingsData } = useQuery({
+    queryKey: ['app-settings'],
+    queryFn: () => api.get<AppSettings>('/admin/settings'),
+    staleTime: 60_000,
+  });
+
   const overview = overviewData?.data;
   const records = recordsData?.data ?? [];
   const dirBreakdown = dirData?.data ?? [];
   const directorates = dirsData?.data ?? [];
+  const settings = settingsData?.data ?? null;
 
   const isToday = selectedDate === new Date().toISOString().slice(0, 10);
 
+  const filteredRecords = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return records;
+    return records.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      (r.staff_id ?? '').toLowerCase().includes(q) ||
+      (r.directorate_abbr ?? '').toLowerCase().includes(q)
+    );
+  }, [records, search]);
+
   function exportAttendanceCSV() {
-    const headers = ['Name', 'Staff ID', 'Directorate', 'Clock In', 'Clock Out', 'Late', 'Streak'];
-    const rows = records.map(r => [
+    const source = filteredRecords;
+    const headers = ['Name', 'Staff ID', 'Directorate', 'Clock In', 'Clock Out', 'Late', 'Left Early', 'Streak', 'Photo URL'];
+    const rows = source.map(r => [
       r.name,
       r.staff_id ?? '',
       r.directorate_abbr ?? '',
       r.clock_in_time ? formatTime(r.clock_in_time) : 'Absent',
       r.clock_out_time ? formatTime(r.clock_out_time) : '',
       r.is_late ? 'Yes' : 'No',
+      r.is_early_departure ? 'Yes' : 'No',
       String(r.current_streak),
+      resolvePhotoUrl(r.clock_in_photo) ?? '',
     ]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${c}"`).join(',')).join('\n');
     downloadCSV(csv, `OHCS-Attendance-${selectedDate}.csv`);
+  }
+
+  async function exportAttendancePDF() {
+    if (!overview || pdfExporting) return;
+    setPdfExporting(true);
+    try {
+      const doc = await generateAttendancePdf(selectedDate, filteredRecords, overview);
+      doc.save(`OHCS-Attendance-${selectedDate}.pdf`);
+    } finally {
+      setPdfExporting(false);
+    }
   }
 
   return (
@@ -110,24 +166,53 @@ export function AttendanceTab() {
               Today
             </button>
           )}
+          {settings && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-border bg-background text-[12px] text-muted hover:text-foreground hover:border-accent/40 transition-all"
+              title={canEditSettings ? 'Edit working hours' : 'View working hours'}
+            >
+              <SettingsIcon className="h-3.5 w-3.5 text-accent-warm" />
+              <span className="font-mono tabular-nums">
+                {settings.work_start_time} – {settings.work_end_time}
+              </span>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-warning">late {settings.late_threshold_time}</span>
+            </button>
+          )}
         </div>
-        <button
-          onClick={exportAttendanceCSV}
-          className="inline-flex items-center gap-2 h-10 px-4 bg-surface text-foreground text-[13px] font-medium rounded-xl border border-border hover:border-accent/40 transition-all"
-        >
-          <Download className="h-4 w-4 text-accent-warm" />
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportAttendanceCSV}
+            className="inline-flex items-center gap-2 h-10 px-4 bg-surface text-foreground text-[13px] font-medium rounded-xl border border-border hover:border-accent/40 transition-all"
+          >
+            <Download className="h-4 w-4 text-accent-warm" />
+            Export CSV
+          </button>
+          <button
+            onClick={exportAttendancePDF}
+            disabled={pdfExporting || !overview}
+            className="inline-flex items-center gap-2 h-10 px-4 bg-surface text-foreground text-[13px] font-medium rounded-xl border border-border hover:border-accent/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {pdfExporting ? (
+              <Loader2 className="h-4 w-4 text-accent-warm animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4 text-accent-warm" />
+            )}
+            {pdfExporting ? 'Generating...' : 'Export PDF'}
+          </button>
+        </div>
       </div>
 
       {/* Overview cards */}
       {overview && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <StatCard icon={<Users className="h-4 w-4" />} label="Total Staff" value={overview.total_staff} color="primary" />
           <StatCard icon={<CheckCircle2 className="h-4 w-4" />} label="Clocked In" value={overview.clocked_in} color="success" />
           <StatCard icon={<XCircle className="h-4 w-4" />} label="Not In" value={overview.not_clocked_in} color="danger" />
           <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Late" value={overview.late_arrivals} color="warning" />
           <StatCard icon={<Clock className="h-4 w-4" />} label="Clocked Out" value={overview.clocked_out} color="muted" />
+          <StatCard icon={<LogOut className="h-4 w-4" />} label="Left Early" value={overview.early_departures ?? 0} color="warning" />
           <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Rate" value={`${overview.attendance_rate}%`} color="accent" />
         </div>
       )}
@@ -169,33 +254,76 @@ export function AttendanceTab() {
         <MonthlyReportModal userId={monthlyUser.id} userName={monthlyUser.name} onClose={() => setMonthlyUser(null)} />
       )}
 
+      {/* Working hours settings */}
+      {settingsOpen && settings && (
+        <SettingsModal current={settings} canEdit={canEditSettings} onClose={() => setSettingsOpen(false)} />
+      )}
+
       {/* Records table */}
       <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, #D4A017, #F5D76E 50%, #D4A017)' }} />
 
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Clock className="h-4.5 w-4.5 text-primary" />
             <h3 className="text-base font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
               Attendance Records — {formatDate(selectedDate + 'T00:00:00Z')}
             </h3>
+            {search && (
+              <span className="text-[12px] text-muted">
+                · {filteredRecords.length} match{filteredRecords.length === 1 ? '' : 'es'}
+              </span>
+            )}
           </div>
-          <select
-            value={dirFilter}
-            onChange={e => setDirFilter(e.target.value)}
-            className="h-9 px-3 rounded-xl border border-border bg-background text-[13px]"
-          >
-            <option value="">All Directorates</option>
-            {directorates.map(d => (
-              <option key={d.id} value={d.id}>{d.abbreviation}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search name, staff ID, dir…"
+                aria-label="Search attendance records"
+                className="h-9 pl-8 pr-8 rounded-xl border border-border bg-background text-[13px] w-56 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : (
+                <kbd className="absolute right-2 top-1/2 -translate-y-1/2 hidden md:inline text-[10px] font-mono text-muted bg-foreground/5 rounded px-1.5 py-0.5 border border-border">
+                  ⌘K
+                </kbd>
+              )}
+            </div>
+            <select
+              value={dirFilter}
+              onChange={e => setDirFilter(e.target.value)}
+              className="h-9 px-3 rounded-xl border border-border bg-background text-[13px]"
+            >
+              <option value="">All Directorates</option>
+              {directorates.map(d => (
+                <option key={d.id} value={d.id}>{d.abbreviation}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {isLoading ? (
           <div className="p-10 text-center text-[14px] text-muted">Loading records...</div>
         ) : records.length === 0 ? (
           <div className="p-10 text-center text-[14px] text-muted">No attendance records for this date</div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="p-10 text-center text-[14px] text-muted">
+            No records match “{search}”.{' '}
+            <button onClick={() => setSearch('')} className="text-primary hover:underline">Clear search</button>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -212,7 +340,7 @@ export function AttendanceTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {records.map(r => (
+                {filteredRecords.map(r => (
                   <tr key={r.user_id} className="hover:bg-background-warm/50 transition-colors">
                     <td className="px-5 py-3">
                         <button onClick={() => setMonthlyUser({ id: r.user_id, name: r.name })}
@@ -238,9 +366,16 @@ export function AttendanceTab() {
                       )}
                     </td>
                     <td className="px-5 py-3">
-                      <span className="text-[14px] text-foreground">
-                        {r.clock_out_time ? formatTime(r.clock_out_time) : '—'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={cn('text-[14px]', r.is_early_departure ? 'text-warning font-medium' : 'text-foreground')}>
+                          {r.clock_out_time ? formatTime(r.clock_out_time) : '—'}
+                        </span>
+                        {r.is_early_departure ? (
+                          <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-bold rounded-md bg-warning/10 text-warning">
+                            Early
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-5 py-3">
                       {!r.clock_in_time ? (
@@ -259,7 +394,7 @@ export function AttendanceTab() {
                     <td className="px-5 py-3">
                       {r.clock_in_photo ? (
                         <div className="w-8 h-8 rounded-lg overflow-hidden border border-border">
-                          <img src={r.clock_in_photo} alt="" className="w-full h-full object-cover" />
+                          <img src={resolvePhotoUrl(r.clock_in_photo)!} alt="" className="w-full h-full object-cover" />
                         </div>
                       ) : '—'}
                     </td>

@@ -1,15 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth';
-import { KeyRound } from 'lucide-react';
+import { KeyRound, Fingerprint } from 'lucide-react';
+import { getLastStaffId, supportsPlatformAuthenticator } from '@/lib/webauthnClient';
 
 export function LoginPage() {
-  const [staffId, setStaffId] = useState('');
+  const [staffId, setStaffId] = useState(() => getLastStaffId() ?? '');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { loginWithPin } = useAuthStore();
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioLoading, setBioLoading] = useState(false);
+  const { loginWithPin, loginWithWebAuthn } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let cancelled = false;
+    supportsPlatformAuthenticator().then((ok) => {
+      if (!cancelled) setBioAvailable(ok);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,6 +33,23 @@ export function LoginPage() {
       setError(err instanceof Error ? err.message : 'Invalid credentials');
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleBiometric() {
+    if (!staffId.trim()) {
+      setError('Enter your Staff ID first');
+      return;
+    }
+    setError('');
+    setBioLoading(true);
+    try {
+      await loginWithWebAuthn(staffId.trim());
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Biometric sign-in failed');
+    } finally {
+      setBioLoading(false);
     }
   }
 
@@ -53,7 +81,7 @@ export function LoginPage() {
             <div>
               <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wide mb-1.5">Staff ID</label>
               <input type="text" required value={staffId} onChange={e => setStaffId(e.target.value.toUpperCase())}
-                placeholder="1334685" autoFocus
+                placeholder="1334685" autoFocus={!staffId}
                 className="w-full h-12 px-4 rounded-xl bg-white/10 border border-white/10 text-white text-[15px] font-medium tracking-wider placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-[#D4A017]/30 focus:border-[#D4A017]/40 transition-all" />
             </div>
             <div>
@@ -63,10 +91,30 @@ export function LoginPage() {
                 className="w-full h-14 px-4 rounded-xl bg-white/10 border border-white/10 text-white text-center text-2xl font-bold tracking-[0.5em] font-mono placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-[#D4A017]/30 focus:border-[#D4A017]/40 transition-all" />
             </div>
             {error && <p className="text-red-400 text-[13px] font-medium">{error}</p>}
-            <button type="submit" disabled={isLoading || pin.length !== 4}
+            <button type="submit" disabled={isLoading || bioLoading || pin.length !== 4}
               className="w-full h-12 bg-[#D4A017] text-[#071A0F] rounded-xl font-bold text-[15px] hover:brightness-110 disabled:opacity-50 shadow-lg shadow-[#D4A017]/20 active:scale-[0.98] transition-all">
               {isLoading ? 'Signing in...' : 'Sign In'}
             </button>
+
+            {bioAvailable && (
+              <>
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="flex-1 h-px bg-white/10" />
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-white/30 font-semibold">or</span>
+                  <div className="flex-1 h-px bg-white/10" />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBiometric}
+                  disabled={isLoading || bioLoading || !staffId.trim()}
+                  className="w-full h-12 rounded-xl bg-white/10 border border-[#D4A017]/30 text-white text-[14px] font-semibold hover:bg-white/15 hover:border-[#D4A017]/50 disabled:opacity-40 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  <Fingerprint className="h-5 w-5 text-[#D4A017]" />
+                  {bioLoading ? 'Authenticating…' : 'Sign in with Biometrics'}
+                </button>
+                <p className="text-[11px] text-white/40 text-center">Enroll from the Settings menu after signing in</p>
+              </>
+            )}
           </form>
         </div>
 

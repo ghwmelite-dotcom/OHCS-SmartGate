@@ -44,7 +44,7 @@ export function VisitorsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name, phone, or organisation..."
-          className="w-full h-11 pl-10 pr-4 rounded-lg border border-border bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          className="w-full h-11 pl-10 pr-4 rounded-lg border border-border bg-surface text-base focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
         />
         {isFetching && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">

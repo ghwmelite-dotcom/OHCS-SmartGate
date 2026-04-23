@@ -63,51 +63,45 @@ export function ChatPanel() {
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={cn(
-              'flex gap-2',
-              msg.role === 'user' ? 'justify-end' : 'justify-start'
-            )}
-          >
-            {msg.role === 'assistant' && (
-              <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                <Bot className="h-3.5 w-3.5" />
-              </div>
-            )}
+        {messages.map((msg) => {
+          const isEmptyStreaming = msg.role === 'assistant' && (msg as { streaming?: boolean }).streaming && !msg.content;
+          return (
             <div
+              key={msg.id}
               className={cn(
-                'max-w-[80%] rounded-xl px-3.5 py-2.5 text-[13px] whitespace-pre-wrap leading-relaxed',
-                msg.role === 'user'
-                  ? 'bg-primary text-white rounded-br-sm'
-                  : 'bg-surface text-foreground border border-border rounded-bl-sm shadow-sm'
+                'flex gap-2',
+                msg.role === 'user' ? 'justify-end' : 'justify-start'
               )}
             >
-              {msg.content}
-            </div>
-            {msg.role === 'user' && (
-              <div className="w-6 h-6 rounded-lg bg-accent/10 text-accent-warm flex items-center justify-center shrink-0 mt-0.5">
-                <User className="h-3.5 w-3.5" />
+              {msg.role === 'assistant' && (
+                <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="h-3.5 w-3.5" />
+                </div>
+              )}
+              <div
+                className={cn(
+                  'max-w-[80%] rounded-xl px-3.5 py-2.5 text-[13px] whitespace-pre-wrap leading-relaxed',
+                  msg.role === 'user'
+                    ? 'bg-primary text-white rounded-br-sm'
+                    : 'bg-surface text-foreground border border-border rounded-bl-sm shadow-sm'
+                )}
+              >
+                {isEmptyStreaming ? (
+                  <span className="inline-flex gap-1.5 items-center py-0.5">
+                    <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </span>
+                ) : msg.content}
               </div>
-            )}
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex gap-2 justify-start">
-            <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
-              <Bot className="h-3.5 w-3.5" />
+              {msg.role === 'user' && (
+                <div className="w-6 h-6 rounded-lg bg-accent/10 text-accent-warm flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="h-3.5 w-3.5" />
+                </div>
+              )}
             </div>
-            <div className="bg-surface border border-border rounded-xl rounded-bl-sm px-4 py-3 shadow-sm">
-              <div className="flex gap-1.5">
-                <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-            </div>
-          </div>
-        )}
+          );
+        })}
 
         <div ref={messagesEndRef} />
       </div>

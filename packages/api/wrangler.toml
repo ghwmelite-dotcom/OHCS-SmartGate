@@ -8,9 +8,10 @@ rules = [
 ]
 
 # Attendance summaries — Ghana time (UTC+0)
-# Clock reminder: 8:30 AM Mon-Fri | Daily: 9 AM Mon-Fri | Weekly: 4 PM Friday | Monthly: 9 AM 1st | Yearly: 9 AM Jan 1
+# Clock reminder: every 15 min 7-9 Mon-Fri (self-gates on admin-configurable late threshold)
+# Daily summary: 9 AM Mon-Fri | Weekly: 4 PM Friday | Monthly: 9 AM 1st | Yearly: 9 AM Jan 1
 [triggers]
-crons = ["30 8 * * 1-5", "0 9 * * 1-5", "0 16 * * 5", "0 9 1 * *", "0 9 1 1 *"]
+crons = ["*/15 7-9 * * 1-5", "0 9 * * 1-5", "0 16 * * 5", "0 9 1 * *", "0 9 1 1 *"]
 
 [vars]
 ENVIRONMENT = "production"

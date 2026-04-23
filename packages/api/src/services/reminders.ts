@@ -1,16 +1,28 @@
 import type { Env } from '../types';
 import { sendTypedNotification } from './notifier';
 import { devLog, devError } from '../lib/log';
-
-const LATE_THRESHOLD_MIN_OF_DAY = 8 * 60 + 30; // 08:30 UTC (Ghana time)
+import { getAppSettings, hhmmToMinutes } from './settings';
 
 /**
- * 08:30 weekday cron.
- * Sends a push + in-app reminder to every active staff member who hasn't
- * clocked in yet today.
+ * Fired by a frequent weekday cron (*\/15 7-9) and self-gates on the admin-
+ * configurable late_threshold_time. Sends a push + in-app reminder to every
+ * active staff member who hasn't clocked in yet today. Deduped via KV so it
+ * only fires once per day even if multiple ticks fall in the fire window.
  */
 export async function sendClockReminders(env: Env): Promise<void> {
-  const today = new Date().toISOString().slice(0, 10);
+  const settings = await getAppSettings(env);
+  const thresholdMin = hhmmToMinutes(settings.late_threshold_time);
+  const now = new Date();
+  const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+  // Only fire at-or-past the configured late threshold
+  if (nowMin < thresholdMin) return;
+
+  const today = now.toISOString().slice(0, 10);
+  const dedupeKey = `reminder-sent:${today}`;
+  if (await env.KV.get(dedupeKey)) return;
+  await env.KV.put(dedupeKey, '1', { expirationTtl: 86400 });
+
   const rows = await env.DB.prepare(
     `SELECT u.id, u.name FROM users u
      WHERE u.is_active = 1
@@ -60,11 +72,14 @@ export async function sendLateClockAlert(env: Env, userId: string, clockedAtISO:
        )`
   ).bind(userId, clocker.directorate_id ?? '').all<{ id: string }>();
 
+  const settings = await getAppSettings(env);
+  const thresholdMin = hhmmToMinutes(settings.late_threshold_time);
+
   const at = new Date(clockedAtISO);
   const hh = String(at.getUTCHours()).padStart(2, '0');
   const mm = String(at.getUTCMinutes()).padStart(2, '0');
   const minOfDay = at.getUTCHours() * 60 + at.getUTCMinutes();
-  const minutesLate = Math.max(0, minOfDay - LATE_THRESHOLD_MIN_OF_DAY);
+  const minutesLate = Math.max(0, minOfDay - thresholdMin);
 
   await Promise.all(
     (recipients.results ?? []).map((r) =>
@@ -152,7 +167,7 @@ export async function sendAbsenceNoticePush(env: Env, notice: AbsenceNoticeInput
   if (notice.expected_return_date) {
     const rd = new Date(notice.expected_return_date + 'T00:00:00Z');
     const dateFmt = rd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-    title = `${user.name} out through ${dateFmt}`;
+    title = `${user.name} out until ${dateFmt}`;
   } else {
     title = `${user.name} won't be in today`;
   }

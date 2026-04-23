@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '@/lib/api';
+import { api, resolvePhotoUrl } from '@/lib/api';
 import { cn, formatDate, formatTime } from '@/lib/utils';
 import { Search, ShieldCheck, ShieldX, User, Building2, Clock, MapPin } from 'lucide-react';
 
@@ -145,7 +145,7 @@ export function VerifyBadgePage() {
                 <div className="flex items-center gap-4">
                   {badge.photo_url ? (
                     <div className="w-16 h-16 rounded-2xl overflow-hidden border border-border shrink-0">
-                      <img src={badge.photo_url} alt="" className="w-full h-full object-cover" />
+                      <img src={resolvePhotoUrl(badge.photo_url)!} alt="" className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-xl font-bold shrink-0">

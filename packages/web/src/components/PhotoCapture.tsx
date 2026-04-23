@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Camera, RotateCcw, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolvePhotoUrl } from '@/lib/api';
 
 interface PhotoCaptureProps {
   onCapture: (blob: Blob) => void;
@@ -95,7 +96,7 @@ export function PhotoCapture({ onCapture, onSkip, existingPhotoUrl }: PhotoCaptu
           Visitor Photo
         </p>
         <div className="w-32 h-32 rounded-2xl overflow-hidden mx-auto border-2 border-border shadow-md">
-          <img src={existingPhotoUrl} alt="Visitor" className="w-full h-full object-cover" />
+          <img src={resolvePhotoUrl(existingPhotoUrl)!} alt="Visitor" className="w-full h-full object-cover" />
         </div>
         <div className="flex items-center justify-center gap-3">
           <button

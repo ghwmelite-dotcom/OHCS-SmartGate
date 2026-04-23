@@ -7,6 +7,7 @@ import { LetterReveal } from '@/components/LetterReveal';
 import { MagneticButton } from '@/components/MagneticButton';
 import { ConfettiBurst } from '@/components/ConfettiBurst';
 import { api } from '@/lib/api';
+import { getToken } from '@/lib/tokenStore';
 import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, formatTime } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
@@ -65,8 +66,30 @@ export function ClockPage() {
   const canClockOut = status?.clocked_in && !status?.clocked_out;
 
   const clockMutation = useMutation({
-    mutationFn: async (data: { type: string; latitude: number; longitude: number; accuracy: number }) => {
-      return await apiOrQueue<ClockResult>('clock-queue', '/clock', data);
+    mutationFn: async (data: {
+      type: string; latitude: number; longitude: number; accuracy: number; photo: Blob | null;
+    }) => {
+      const { photo, ...clockData } = data;
+      const res = await apiOrQueue<ClockResult>('clock-queue', '/clock', clockData);
+      if (!('queued' in res) && res.data && photo) {
+        const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
+        const token = getToken();
+        try {
+          const uploadRes = await fetch(`${apiBase}/api/clock/${res.data.id}/photo`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'image/jpeg',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: await photo.arrayBuffer(),
+          });
+          if (!uploadRes.ok) console.error('[clock] photo upload failed:', uploadRes.status, await uploadRes.text().catch(() => ''));
+        } catch (e) {
+          console.error('[clock] photo upload error:', e);
+        }
+      }
+      return res;
     },
     onSuccess: async (res: ApiOrQueueResult<ClockResult>) => {
       if ('queued' in res) {
@@ -84,14 +107,6 @@ export function ClockPage() {
         setPhase('success');
         stopCamera();
         return;
-      }
-      if (res.data && photoBlob) {
-        const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
-        await fetch(`${apiBase}/api/clock/${res.data.id}/photo`, {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'image/jpeg' },
-          body: await photoBlob.arrayBuffer(),
-        }).catch(() => {});
       }
       setResult(res.data);
       setPhase('success');
@@ -188,7 +203,13 @@ export function ClockPage() {
     if (!location) return;
     if (photo) setPhotoBlob(photo);
     setPhase('submitting');
-    clockMutation.mutate({ type: clockType, latitude: location.lat, longitude: location.lng, accuracy: location.accuracy });
+    clockMutation.mutate({
+      type: clockType,
+      latitude: location.lat,
+      longitude: location.lng,
+      accuracy: location.accuracy,
+      photo: photo ?? photoBlob ?? null,
+    });
   }
 
   function resetState() {
@@ -201,7 +222,9 @@ export function ClockPage() {
   }
 
   const now = new Date();
-  const greeting = now.getHours() < 12 ? 'Good Morning' : now.getHours() < 17 ? 'Good Afternoon' : 'Good Evening';
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const greetingEmoji = hour < 12 ? '🌅' : hour < 17 ? '☀️' : '🌙';
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -240,7 +263,10 @@ export function ClockPage() {
         }}
       >
         {/* Greeting */}
-        <p className="text-[11px] text-accent-warm tracking-[0.2em] uppercase font-semibold">{greeting}</p>
+        <p className="text-[11px] text-accent-warm tracking-[0.2em] uppercase font-semibold">
+          <span aria-hidden="true" className="mr-1.5 not-italic tracking-normal">{greetingEmoji}</span>
+          {greeting}
+        </p>
         <h2 className="text-[28px] font-bold text-foreground mt-1 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
           <LetterReveal text={user?.name ?? ''} />
         </h2>
@@ -331,9 +357,9 @@ export function ClockPage() {
                 <div className="text-center py-8">
                   <CheckCircle2 className="h-12 w-12 text-success mx-auto mb-3" />
                   <p className="text-[18px] font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-                    You're done for today
+                    🎉 You're done for today
                   </p>
-                  <p className="text-[14px] text-muted mt-1">See you tomorrow!</p>
+                  <p className="text-[14px] text-muted mt-1">See you tomorrow 👋</p>
                 </div>
               )}
             </div>
@@ -345,8 +371,8 @@ export function ClockPage() {
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
                 <MapPin className="h-7 w-7 text-primary" />
               </div>
-              <p className="text-[16px] font-semibold text-foreground">Getting your location...</p>
-              <p className="text-[13px] text-muted mt-1">Please allow location access</p>
+              <p className="text-[16px] font-semibold text-foreground">📍 Locating you…</p>
+              <p className="text-[13px] text-muted mt-1">🛰️ Please allow location access</p>
             </div>
           )}
 
@@ -354,7 +380,7 @@ export function ClockPage() {
           {phase === 'photo' && (
             <div className="text-center space-y-4 w-full">
               <p className="text-[15px] font-semibold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-                Quick selfie for verification
+                📸 Quick selfie for verification
               </p>
               <div className="relative w-48 h-48 mx-auto rounded-3xl overflow-hidden bg-primary-deep">
                 <video ref={videoRef} autoPlay playsInline muted
@@ -381,8 +407,9 @@ export function ClockPage() {
             <div className="text-center">
               <Loader2 className="h-10 w-10 text-primary mx-auto mb-4 animate-spin" />
               <p className="text-[16px] font-semibold text-foreground">
-                Clocking {clockType === 'clock_in' ? 'in' : 'out'}...
+                ⏳ Clocking {clockType === 'clock_in' ? 'in' : 'out'}…
               </p>
+              <p className="text-[12px] text-muted mt-1">Securing your record 🔐</p>
             </div>
           )}
 
@@ -395,12 +422,12 @@ export function ClockPage() {
               </div>
               <div>
                 <p className="text-[20px] font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-                  {result.type === 'clock_in' ? 'Clocked In!' : 'Clocked Out!'}
+                  {result.type === 'clock_in' ? '🎉 Clocked In!' : '🏁 Clocked Out!'}
                 </p>
                 <p className="text-[16px] text-foreground font-medium mt-1">
                   {result.user_name} &middot; {formatTime(result.timestamp)}
                 </p>
-                <p className="text-[13px] text-muted mt-0.5">Staff ID: {result.staff_id}</p>
+                <p className="text-[13px] text-muted mt-0.5">🪪 Staff ID: {result.staff_id}</p>
               </div>
               {photoPreview && (
                 <div className="w-20 h-20 rounded-2xl overflow-hidden mx-auto border border-border">
@@ -410,12 +437,12 @@ export function ClockPage() {
               {result.streak > 1 && (
                 <div className="flex items-center justify-center gap-2 px-4 py-2 bg-accent/10 rounded-full">
                   <Flame className="h-4 w-4 text-accent-warm" />
-                  <span className="text-[14px] font-bold text-accent-warm">{result.streak} day streak!</span>
+                  <span className="text-[14px] font-bold text-accent-warm">🔥 {result.streak} day streak!</span>
                 </div>
               )}
               <button onClick={resetState}
                 className="h-10 px-6 text-[14px] font-medium text-primary border border-primary/20 rounded-xl hover:bg-primary/5 transition-all">
-                Done
+                ✅ Done
               </button>
             </div>
           )}
@@ -427,11 +454,11 @@ export function ClockPage() {
                 <MapPin className="h-8 w-8 text-danger" />
               </div>
               <p className="text-[16px] font-bold text-danger" style={{ fontFamily: "'Playfair Display', serif" }}>
-                {errorMsg}
+                ⚠️ {errorMsg}
               </p>
               <button onClick={resetState}
                 className="h-10 px-6 text-[14px] font-medium text-foreground border border-border rounded-xl hover:bg-background transition-all">
-                Try Again
+                🔄 Try Again
               </button>
             </div>
           )}

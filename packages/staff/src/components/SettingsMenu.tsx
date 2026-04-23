@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Settings } from 'lucide-react';
 import { InstallButton } from './InstallButton';
 import { PushToggle } from './PushToggle';
+import { BiometricToggle } from './BiometricToggle';
 
 interface Props {
   /** Which direction the dropdown panel opens. Default: 'bottom' (opens below the trigger). */
@@ -24,6 +25,8 @@ export function SettingsMenu({ placement = 'bottom', variant = 'icon' }: Props) 
   }, [open]);
 
   const panelPosition = placement === 'top' ? 'bottom-[calc(100%+8px)]' : 'top-11';
+  // Header icon sits on the right → panel drops down-left. Bottom-nav item sits on the left → panel opens up-right.
+  const panelAnchor = variant === 'nav-item' ? 'left-0' : 'right-0';
 
   return (
     <div ref={menuRef} className="relative">
@@ -50,9 +53,11 @@ export function SettingsMenu({ placement = 'bottom', variant = 'icon' }: Props) 
         </button>
       )}
       {open && (
-        <div className={`absolute right-0 ${panelPosition} z-30 bg-white rounded-xl shadow-xl border border-gray-200 w-64 p-3 space-y-2`}>
+        <div className={`absolute ${panelAnchor} ${panelPosition} z-30 bg-white rounded-xl shadow-xl border border-gray-200 w-64 max-w-[calc(100vw-16px)] p-3 space-y-3`}>
           <InstallButton />
           <PushToggle />
+          <div className="h-px bg-gray-100" />
+          <BiometricToggle />
         </div>
       )}
     </div>

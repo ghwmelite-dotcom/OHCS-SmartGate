@@ -52,6 +52,16 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
+// Resolve a stored photo URL (e.g. "/api/photos/clock/abc") to an absolute URL
+// the browser can load. In prod the API lives on a different origin, so <img>
+// tags need the full URL; relative paths would resolve against the Pages origin.
+export function resolvePhotoUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^(https?:|data:|blob:)/.test(url)) return url;
+  const origin = API_BASE.replace(/\/api$/, '');
+  return `${origin}${url}`;
+}
+
 /* ---- Shared API types ---- */
 
 export interface Visitor {

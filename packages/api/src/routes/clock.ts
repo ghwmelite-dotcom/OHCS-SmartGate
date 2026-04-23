@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Env, SessionData } from '../types';
 import { success, error } from '../lib/response';
 import { sendLateClockAlert } from '../services/reminders';
+import { getAppSettings, hhmmToMinutes } from '../services/settings';
 import { devLog } from '../lib/log';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
@@ -136,11 +137,13 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     }
   }
 
-  // Late-clock alert: fires for clock_in after 08:30 UTC (Ghana time).
+  // Late-clock alert: fires for clock_in past the configured late threshold (Ghana time = UTC+0).
   if (type === 'clock_in') {
+    const settings = await getAppSettings(c.env);
+    const thresholdMin = hhmmToMinutes(settings.late_threshold_time);
     const now = new Date();
     const minOfDay = now.getUTCHours() * 60 + now.getUTCMinutes();
-    if (minOfDay > 8 * 60 + 30) {
+    if (minOfDay > thresholdMin) {
       c.executionCtx.waitUntil(sendLateClockAlert(c.env, session.userId, now.toISOString()));
     }
   }

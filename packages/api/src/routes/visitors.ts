@@ -90,15 +90,17 @@ visitorRoutes.put('/:id', zValidator('json', UpdateVisitorSchema), async (c) => 
 
   const fields: string[] = [];
   const values: unknown[] = [];
-  for (const [key, value] of Object.entries(body)) {
-    if (value !== undefined) {
-      fields.push(`${key} = ?`);
-      values.push(value || null);
-    }
-  }
-  fields.push("updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')");
 
-  if (fields.length > 1) {
+  if (body.first_name !== undefined) { fields.push('first_name = ?'); values.push(body.first_name); }
+  if (body.last_name !== undefined) { fields.push('last_name = ?'); values.push(body.last_name); }
+  if (body.phone !== undefined) { fields.push('phone = ?'); values.push(body.phone || null); }
+  if (body.email !== undefined) { fields.push('email = ?'); values.push(body.email || null); }
+  if (body.organisation !== undefined) { fields.push('organisation = ?'); values.push(body.organisation || null); }
+  if (body.id_type !== undefined) { fields.push('id_type = ?'); values.push(body.id_type || null); }
+  if (body.id_number !== undefined) { fields.push('id_number = ?'); values.push(body.id_number || null); }
+
+  if (fields.length > 0) {
+    fields.push("updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')");
     values.push(id);
     await c.env.DB.prepare(`UPDATE visitors SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
   }

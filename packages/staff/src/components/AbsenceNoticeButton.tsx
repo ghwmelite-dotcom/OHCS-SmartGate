@@ -15,10 +15,10 @@ interface Notice {
 }
 
 const REASON_LABELS: Record<Reason, string> = {
-  sick: 'Sick',
-  family_emergency: 'Family emergency',
-  transport: 'Transport',
-  other: 'Other',
+  sick: '🤒 Sick',
+  family_emergency: '👨‍👩‍👧 Family emergency',
+  transport: '🚗 Transport',
+  other: '📝 Other',
 };
 
 export function AbsenceNoticeButton() {
@@ -48,7 +48,7 @@ export function AbsenceNoticeButton() {
         className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-surface text-muted-foreground hover:text-foreground hover:border-muted text-[13px] font-semibold transition-colors shadow-sm"
       >
         <AlertTriangle className="h-4 w-4" />
-        Can't make it today?
+        🏠 Can't make it today?
       </button>
       {showModal && <AbsenceNoticeModal onClose={() => setShowModal(false)} />}
     </>

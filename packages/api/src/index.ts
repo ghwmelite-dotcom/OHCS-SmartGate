@@ -16,6 +16,9 @@ import { reportRoutes } from './routes/reports';
 import { adminDirectorateRoutes } from './routes/admin-directorates';
 import { adminMigrationsRoutes } from './routes/admin-migrations';
 import { adminHealthRoutes } from './routes/admin-health';
+import { adminSettingsRoutes } from './routes/admin-settings';
+import { adminEvalAssistantRoutes } from './routes/admin-eval-assistant';
+import { authWebAuthnPublicRoutes, authWebAuthnAuthedRoutes } from './routes/auth-webauthn';
 import { photoRoutes } from './routes/photos';
 import { bulkImportRoutes } from './routes/bulk-import';
 import { clockRoutes } from './routes/clock';
@@ -28,19 +31,27 @@ import { errorHandler } from './middleware/error-handler';
 
 const app = new Hono<{ Bindings: Env; Variables: { session: import('./types').SessionData } }>();
 
-const ALLOWED_ORIGINS = new Set([
+const PROD_ORIGINS = new Set([
   'https://staff-attendance.pages.dev',
   'https://ohcs-smartgate.pages.dev',
+]);
+
+const DEV_ORIGINS = new Set([
   'http://localhost:5173',
   'http://localhost:8788',
 ]);
 
-app.use('*', cors({
-  origin: (origin) => (ALLOWED_ORIGINS.has(origin) ? origin : null),
-  credentials: true,
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-}));
+app.use('*', async (c, next) => {
+  const allowed = c.env.ENVIRONMENT === 'production'
+    ? PROD_ORIGINS
+    : new Set([...PROD_ORIGINS, ...DEV_ORIGINS]);
+  return cors({
+    origin: (origin) => (allowed.has(origin) ? origin : null),
+    credentials: true,
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+  })(c, next);
+});
 
 app.onError(errorHandler);
 
@@ -48,6 +59,7 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 
 // Public routes (no auth)
 app.route('/api/auth', authRoutes);
+app.route('/api/auth/webauthn', authWebAuthnPublicRoutes);
 app.route('/api/badges', badgeRoutes);
 app.get('/badge/:code', serveBadgePage);
 app.post('/api/telegram/webhook', telegramWebhook);
@@ -86,6 +98,9 @@ app.route('/api/admin/directorates', adminDirectorateRoutes);
 app.route('/api/admin/import', bulkImportRoutes);
 app.route('/api/admin/migrations', adminMigrationsRoutes);
 app.route('/api/admin/health', adminHealthRoutes);
+app.route('/api/admin/settings', adminSettingsRoutes);
+app.route('/api/admin/eval-assistant', adminEvalAssistantRoutes);
+app.route('/api/auth/webauthn', authWebAuthnAuthedRoutes);
 app.route('/api/clock', clockRoutes);
 app.route('/api/attendance', attendanceRoutes);
 app.route('/api/photos', photoRoutes);
@@ -106,7 +121,7 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil((async () => {
       switch (event.cron) {
-        case '30 8 * * 1-5':
+        case '*/15 7-9 * * 1-5':
           await sendClockReminders(env);
           break;
         case '0 9 1 * *':

@@ -1,6 +1,20 @@
+import { getToken } from './tokenStore';
+
+const API_BASE = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
+
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const token = getToken();
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 export async function getPushStatus(): Promise<{ subscribed: boolean; endpoints: number }> {
-  const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
-  const res = await fetch(`${apiBase}/api/notifications/push/status`, { credentials: 'include' });
+  const res = await fetch(`${API_BASE}/api/notifications/push/status`, {
+    credentials: 'include',
+    headers: authHeaders(),
+  });
   if (!res.ok) return { subscribed: false, endpoints: 0 };
   const { data } = await res.json() as { data: { subscribed: boolean; endpoints: number } };
   return data;
@@ -26,13 +40,19 @@ export async function enablePush(): Promise<void> {
     userVisibleOnly: true,
     applicationServerKey: urlB64ToUint8Array(vapidPub),
   });
-  const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
   const json = sub.toJSON();
-  await fetch(`${apiBase}/api/notifications/push/subscribe`, {
-    method: 'POST', credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch(`${API_BASE}/api/notifications/push/subscribe`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
   });
+  if (!res.ok) {
+    // Roll back local subscription so UI state matches server state
+    try { await sub.unsubscribe(); } catch { /* ignore */ }
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Subscribe failed (${res.status}): ${detail || 'server error'}`);
+  }
 }
 
 export async function disablePush(): Promise<void> {
@@ -41,10 +61,13 @@ export async function disablePush(): Promise<void> {
   if (!sub) return;
   const endpoint = sub.endpoint;
   await sub.unsubscribe();
-  const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
-  await fetch(`${apiBase}/api/notifications/push/unsubscribe`, {
-    method: 'POST', credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch(`${API_BASE}/api/notifications/push/unsubscribe`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ endpoint }),
   });
+  if (!res.ok) {
+    console.error('[push] unsubscribe server-side failed:', res.status);
+  }
 }

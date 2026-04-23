@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { sendTelegramMessage } from './telegram';
+import { getAppSettings, toSqlTime } from './settings';
 
 type SummaryType = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -34,6 +35,8 @@ export async function sendDailySummary(env: Env): Promise<void> {
 async function sendDailyReport(env: Env): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const settings = await getAppSettings(env);
+  const lateAfter = toSqlTime(settings.late_threshold_time);
 
   const [totalStaff, clockedIn, lateCount, noticedCount] = await Promise.all([
     env.DB.prepare('SELECT COUNT(*) as c FROM users WHERE is_active = 1').first<{ c: number }>(),
@@ -41,8 +44,8 @@ async function sendDailyReport(env: Env): Promise<void> {
       `SELECT COUNT(DISTINCT user_id) as c FROM clock_records WHERE type = 'clock_in' AND DATE(timestamp) = ?`
     ).bind(today).first<{ c: number }>(),
     env.DB.prepare(
-      `SELECT COUNT(DISTINCT user_id) as c FROM clock_records WHERE type = 'clock_in' AND DATE(timestamp) = ? AND TIME(timestamp) > '08:30:00'`
-    ).bind(today).first<{ c: number }>(),
+      `SELECT COUNT(DISTINCT user_id) as c FROM clock_records WHERE type = 'clock_in' AND DATE(timestamp) = ? AND TIME(timestamp) > ?`
+    ).bind(today, lateAfter).first<{ c: number }>(),
     env.DB.prepare(
       `SELECT COUNT(DISTINCT user_id) as c FROM absence_notices
      WHERE ? BETWEEN notice_date AND COALESCE(expected_return_date, notice_date)`
@@ -90,6 +93,8 @@ async function sendDailyReport(env: Env): Promise<void> {
 // Weekly/Monthly/Yearly report — sent to Chief Director + admin subscribers
 async function sendPeriodicReport(type: SummaryType, env: Env): Promise<void> {
   const now = new Date();
+  const settings = await getAppSettings(env);
+  const lateAfter = toSqlTime(settings.late_threshold_time);
   let fromDate: string;
   let label: string;
 
@@ -115,9 +120,9 @@ async function sendPeriodicReport(type: SummaryType, env: Env): Promise<void> {
   // Attendance stats
   const attendance = await env.DB.prepare(
     `SELECT COUNT(DISTINCT user_id || DATE(timestamp)) as total_clockins,
-            COUNT(DISTINCT CASE WHEN TIME(timestamp) > '08:30:00' THEN user_id || DATE(timestamp) END) as late_clockins
+            COUNT(DISTINCT CASE WHEN TIME(timestamp) > ? THEN user_id || DATE(timestamp) END) as late_clockins
      FROM clock_records WHERE type = 'clock_in' AND DATE(timestamp) >= ? AND DATE(timestamp) <= ?`
-  ).bind(fromDate, toDate).first<{ total_clockins: number; late_clockins: number }>();
+  ).bind(lateAfter, fromDate, toDate).first<{ total_clockins: number; late_clockins: number }>();
 
   // Top directorate by visits
   const topDir = await env.DB.prepare(

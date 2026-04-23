@@ -323,7 +323,7 @@ function CreateUserModal({ onClose, onSuccess }: { onClose: () => void; onSucces
         </div>
 
         <form onSubmit={form.handleSubmit(data => mutation.mutate(data))} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Full Name" error={form.formState.errors.name?.message}>
               <input {...form.register('name')} className={inputCls} placeholder="Kwame Mensah" autoFocus />
             </FormField>
@@ -332,7 +332,7 @@ function CreateUserModal({ onClose, onSuccess }: { onClose: () => void; onSucces
             </FormField>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FormField label="Staff ID" error={form.formState.errors.staff_id?.message}>
               <input {...form.register('staff_id')} className={cn(inputCls, 'uppercase')} placeholder="12345" />
             </FormField>
@@ -346,7 +346,7 @@ function CreateUserModal({ onClose, onSuccess }: { onClose: () => void; onSucces
             </FormField>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Grade / Designation">
               <input {...form.register('grade')} className={inputCls} placeholder="e.g. Snr IT/IM Technician" />
             </FormField>
@@ -421,7 +421,7 @@ function EditUserModal({ user, onClose, onSuccess }: { user: UserRecord; onClose
         </div>
 
         <form onSubmit={form.handleSubmit(data => mutation.mutate(data))} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Full Name" error={form.formState.errors.name?.message}>
               <input {...form.register('name')} className={inputCls} autoFocus />
             </FormField>
@@ -430,7 +430,7 @@ function EditUserModal({ user, onClose, onSuccess }: { user: UserRecord; onClose
             </FormField>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FormField label="Staff ID" error={form.formState.errors.staff_id?.message}>
               <input {...form.register('staff_id')} className={cn(inputCls, 'uppercase')} />
             </FormField>
@@ -444,7 +444,7 @@ function EditUserModal({ user, onClose, onSuccess }: { user: UserRecord; onClose
             </FormField>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Grade / Designation">
               <input {...form.register('grade')} className={inputCls} placeholder="e.g. Snr IT/IM Technician" />
             </FormField>

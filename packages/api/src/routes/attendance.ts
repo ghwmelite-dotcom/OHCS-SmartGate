@@ -4,6 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import type { Env, SessionData } from '../types';
 import { success, error } from '../lib/response';
 import { sendAbsenceNoticePush, type AbsenceNoticeInput } from '../services/reminders';
+import { getAppSettings, toSqlTime } from '../services/settings';
 
 export const attendanceRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
@@ -16,8 +17,11 @@ function requireAdmin(c: { get: (key: 'session') => SessionData }) {
 attendanceRoutes.get('/today', async (c) => {
   if (!requireAdmin(c)) return error(c, 'FORBIDDEN', 'Admin access required', 403);
   const today = new Date().toISOString().slice(0, 10);
+  const settings = await getAppSettings(c.env);
+  const lateAfter = toSqlTime(settings.late_threshold_time);
+  const endAt = toSqlTime(settings.work_end_time);
 
-  const [totalStaff, clockedIn, clockedOut, lateArrivals] = await Promise.all([
+  const [totalStaff, clockedIn, clockedOut, lateArrivals, earlyDepartures] = await Promise.all([
     c.env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE is_active = 1').first<{ count: number }>(),
 
     c.env.DB.prepare(
@@ -28,11 +32,17 @@ attendanceRoutes.get('/today', async (c) => {
       `SELECT COUNT(DISTINCT user_id) as count FROM clock_records WHERE type = 'clock_out' AND DATE(timestamp) = ?`
     ).bind(today).first<{ count: number }>(),
 
-    // Late = clocked in after 8:30 AM
+    // Late = clocked in after configured late threshold
     c.env.DB.prepare(
       `SELECT COUNT(DISTINCT user_id) as count FROM clock_records
-       WHERE type = 'clock_in' AND DATE(timestamp) = ? AND TIME(timestamp) > '08:30:00'`
-    ).bind(today).first<{ count: number }>(),
+       WHERE type = 'clock_in' AND DATE(timestamp) = ? AND TIME(timestamp) > ?`
+    ).bind(today, lateAfter).first<{ count: number }>(),
+
+    // Early departure = clocked out before work_end_time
+    c.env.DB.prepare(
+      `SELECT COUNT(DISTINCT user_id) as count FROM clock_records
+       WHERE type = 'clock_out' AND DATE(timestamp) = ? AND TIME(timestamp) < ?`
+    ).bind(today, endAt).first<{ count: number }>(),
   ]);
 
   const total = totalStaff?.count ?? 0;
@@ -44,6 +54,7 @@ attendanceRoutes.get('/today', async (c) => {
     clocked_out: clockedOut?.count ?? 0,
     not_clocked_in: total - present,
     late_arrivals: lateArrivals?.count ?? 0,
+    early_departures: earlyDepartures?.count ?? 0,
     attendance_rate: total > 0 ? Math.round((present / total) * 100) : 0,
   });
 });
@@ -54,19 +65,23 @@ attendanceRoutes.get('/records', async (c) => {
 
   const date = c.req.query('date') ?? new Date().toISOString().slice(0, 10);
   const directorateId = c.req.query('directorate_id');
+  const settings = await getAppSettings(c.env);
+  const lateAfter = toSqlTime(settings.late_threshold_time);
+  const endAt = toSqlTime(settings.work_end_time);
 
   let sql = `SELECT u.id as user_id, u.name, u.staff_id, u.role,
                     d.abbreviation as directorate_abbr,
                     ci.timestamp as clock_in_time, co.timestamp as clock_out_time,
                     ci.photo_url as clock_in_photo,
-                    CASE WHEN TIME(ci.timestamp) > '08:30:00' THEN 1 ELSE 0 END as is_late,
+                    CASE WHEN TIME(ci.timestamp) > ? THEN 1 ELSE 0 END as is_late,
+                    CASE WHEN co.timestamp IS NOT NULL AND TIME(co.timestamp) < ? THEN 1 ELSE 0 END as is_early_departure,
                     u.current_streak
              FROM users u
              LEFT JOIN directorates d ON u.directorate_id = d.id
              LEFT JOIN clock_records ci ON ci.user_id = u.id AND ci.type = 'clock_in' AND DATE(ci.timestamp) = ?
              LEFT JOIN clock_records co ON co.user_id = u.id AND co.type = 'clock_out' AND DATE(co.timestamp) = ?
              WHERE u.is_active = 1`;
-  const params: unknown[] = [date, date];
+  const params: unknown[] = [lateAfter, endAt, date, date];
 
   if (directorateId) {
     sql += ' AND u.directorate_id = ?';
@@ -84,19 +99,21 @@ attendanceRoutes.get('/by-directorate', async (c) => {
   if (!requireAdmin(c)) return error(c, 'FORBIDDEN', 'Admin access required', 403);
 
   const date = c.req.query('date') ?? new Date().toISOString().slice(0, 10);
+  const settings = await getAppSettings(c.env);
+  const lateAfter = toSqlTime(settings.late_threshold_time);
 
   const results = await c.env.DB.prepare(
     `SELECT d.abbreviation, d.name,
             COUNT(DISTINCT u.id) as total_staff,
             COUNT(DISTINCT ci.user_id) as present,
-            COUNT(DISTINCT CASE WHEN TIME(ci.timestamp) > '08:30:00' THEN ci.user_id END) as late
+            COUNT(DISTINCT CASE WHEN TIME(ci.timestamp) > ? THEN ci.user_id END) as late
      FROM directorates d
      LEFT JOIN users u ON u.directorate_id = d.id AND u.is_active = 1
      LEFT JOIN clock_records ci ON ci.user_id = u.id AND ci.type = 'clock_in' AND DATE(ci.timestamp) = ?
      WHERE d.is_active = 1
      GROUP BY d.id
      ORDER BY d.abbreviation`
-  ).bind(date).all();
+  ).bind(lateAfter, date).all();
 
   return success(c, results.results ?? []);
 });
@@ -118,13 +135,16 @@ attendanceRoutes.get('/user/:userId/monthly', async (c) => {
     'SELECT name, staff_id, current_streak, longest_streak FROM users WHERE id = ?'
   ).bind(userId).first();
 
+  const settings = await getAppSettings(c.env);
+  const lateAfter = toSqlTime(settings.late_threshold_time);
+
   // Group by date
   const days: Record<string, { clock_in?: string; clock_out?: string; is_late: boolean }> = {};
   for (const r of (records.results ?? []) as Array<{ date: string; type: string; time: string }>) {
     if (!days[r.date]) days[r.date] = { is_late: false };
     if (r.type === 'clock_in') {
       days[r.date]!.clock_in = r.time;
-      days[r.date]!.is_late = r.time > '08:30:00';
+      days[r.date]!.is_late = r.time > lateAfter;
     }
     if (r.type === 'clock_out') days[r.date]!.clock_out = r.time;
   }
@@ -215,8 +235,10 @@ attendanceRoutes.post('/absence-notice', zValidator('json', absenceNoticeSchema)
   const body = c.req.valid('json');
   const today = new Date().toISOString().slice(0, 10);
 
-  if (body.expected_return_date && body.expected_return_date < today) {
-    return error(c, 'INVALID_DATE', 'expected_return_date cannot be in the past', 400);
+  // expected_return_date is the day they're BACK at work (exclusive — they are not absent on that day),
+  // so it must be strictly after today.
+  if (body.expected_return_date && body.expected_return_date <= today) {
+    return error(c, 'INVALID_DATE', 'Expected return date must be after today', 400);
   }
 
   const id = crypto.randomUUID().replace(/-/g, '');
@@ -243,14 +265,17 @@ attendanceRoutes.get('/absence-notice/today', async (c) => {
   const session = c.get('session');
   const today = new Date().toISOString().slice(0, 10);
 
+  // Active absence spans [notice_date, expected_return_date). If return date is null,
+  // the notice covers only notice_date itself.
   const row = await c.env.DB.prepare(
     `SELECT id, user_id, reason, note, notice_date, expected_return_date, created_at
      FROM absence_notices
      WHERE user_id = ?
-       AND ? BETWEEN notice_date AND COALESCE(expected_return_date, notice_date)
+       AND ? >= notice_date
+       AND ? < COALESCE(expected_return_date, DATE(notice_date, '+1 day'))
      ORDER BY created_at DESC
      LIMIT 1`
-  ).bind(session.userId, today).first();
+  ).bind(session.userId, today, today).first();
 
   return success(c, row ?? null);
 });

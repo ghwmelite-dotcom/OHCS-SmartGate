@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",
+    "@simplewebauthn/server": "^11.0.0",
     "hono": "^4.7.0",
     "zod": "^3.24.0"
   },

@@ -1,9 +1,17 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Env } from '../types';
-import { success, notFound } from '../lib/response';
+import { success, notFound, error } from '../lib/response';
+import { rateLimit } from '../lib/rate-limit';
 
 export const badgeRoutes = new Hono<{ Bindings: Env }>();
+
+// Public badge endpoints are unauthenticated; rate-limit per IP to prevent
+// enumeration of the global badge-code space.
+async function checkBadgeRateLimit(c: Context<{ Bindings: Env }>): Promise<{ allowed: boolean; retryAfter: number }> {
+  const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
+  return rateLimit(c.env, `badge-ip:${ip}`, 30, 60);
+}
 
 interface BadgeData {
   badge_code: string;
@@ -34,6 +42,11 @@ WHERE v.badge_code = ?`;
 
 // Public JSON API
 badgeRoutes.get('/:code', async (c) => {
+  const rl = await checkBadgeRateLimit(c);
+  if (!rl.allowed) {
+    c.header('Retry-After', String(rl.retryAfter));
+    return error(c, 'RATE_LIMITED', 'Too many requests. Try again shortly.', 429);
+  }
   const code = c.req.param('code');
   const visit = await c.env.DB.prepare(BADGE_QUERY).bind(code).first<BadgeData>();
   if (!visit) return notFound(c, 'Badge');
@@ -42,6 +55,11 @@ badgeRoutes.get('/:code', async (c) => {
 
 // Public HTML badge page
 export async function serveBadgePage(c: Context<{ Bindings: Env }>) {
+  const rl = await checkBadgeRateLimit(c);
+  if (!rl.allowed) {
+    c.header('Retry-After', String(rl.retryAfter));
+    return c.html('<!DOCTYPE html><html><body style="font-family:system-ui;text-align:center;padding:60px"><h1>Too many requests</h1><p>Please wait a moment and reload.</p></body></html>', 429);
+  }
   const code = c.req.param('code');
   const visit = await c.env.DB.prepare(BADGE_QUERY).bind(code).first<BadgeData>();
 

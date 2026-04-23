@@ -18,7 +18,7 @@ export function AppLayout() {
 
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <Header />
-        <main className="flex-1 overflow-auto bg-background bg-kente p-4 md:p-6 pb-20 lg:pb-6">
+        <main className="flex-1 overflow-auto bg-background bg-kente p-4 md:p-6 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-6">
           <Outlet />
         </main>
       </div>

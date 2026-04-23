@@ -27,7 +27,7 @@ export function SettingsMenu() {
         <Settings className="h-4 w-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-11 z-30 bg-white rounded-xl shadow-xl border border-gray-200 w-64 p-3 space-y-2">
+        <div className="absolute right-0 top-11 z-30 bg-white rounded-xl shadow-xl border border-gray-200 w-64 max-w-[calc(100vw-16px)] p-3 space-y-2">
           <InstallButton />
           <PushToggle />
         </div>

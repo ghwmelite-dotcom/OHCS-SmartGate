@@ -1,5 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { resolvePhotoUrl } from './api';
+import { getToken } from './tokenStore';
 
 interface ReportSummary {
   total_visits: number;
@@ -137,6 +139,212 @@ export function generatePDF(summary: ReportSummary, visits: VisitRow[]) {
       pageWidth - 14,
       doc.internal.pageSize.getHeight() - 8,
       { align: 'right' }
+    );
+  }
+
+  return doc;
+}
+
+/* ---------- Attendance PDF (with embedded photos) ---------- */
+
+interface AttendanceRow {
+  user_id: string;
+  name: string;
+  staff_id: string | null;
+  directorate_abbr: string | null;
+  clock_in_time: string | null;
+  clock_out_time: string | null;
+  clock_in_photo: string | null;
+  is_late: number;
+  is_early_departure: number;
+  current_streak: number;
+}
+
+interface AttendanceSummary {
+  total_staff: number;
+  clocked_in: number;
+  late_arrivals: number;
+  early_departures?: number;
+  attendance_rate: number;
+}
+
+async function fetchPhotoDataUrl(photoPath: string): Promise<string | null> {
+  const url = resolvePhotoUrl(photoPath);
+  if (!url) return null;
+  const token = getToken();
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function generateAttendancePdf(
+  date: string,
+  records: AttendanceRow[],
+  summary: AttendanceSummary,
+): Promise<jsPDF> {
+  // Pre-fetch all photos in parallel (keyed by user_id)
+  const photoEntries = await Promise.all(
+    records
+      .filter(r => r.clock_in_photo)
+      .map(async r => [r.user_id, await fetchPhotoDataUrl(r.clock_in_photo!)] as const),
+  );
+  const photoMap = new Map<string, string>(
+    photoEntries.filter((e): e is readonly [string, string] => !!e[1]),
+  );
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header
+  doc.setFillColor(26, 77, 46);
+  doc.rect(0, 0, pageWidth, 28, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('OHCS SmartGate', 14, 12);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Staff Attendance Report', 14, 18);
+
+  const dateFormatted = new Date(date + 'T00:00:00Z').toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  doc.text(dateFormatted, 14, 24);
+
+  doc.setFontSize(8);
+  doc.text(
+    `Generated: ${new Date().toLocaleDateString('en-GB')} ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`,
+    pageWidth - 14, 24, { align: 'right' },
+  );
+
+  // Ghana flag bar
+  const barY = 28;
+  const third = pageWidth / 3;
+  doc.setFillColor(206, 17, 38);
+  doc.rect(0, barY, third, 1.5, 'F');
+  doc.setFillColor(252, 209, 22);
+  doc.rect(third, barY, third, 1.5, 'F');
+  doc.setFillColor(0, 107, 63);
+  doc.rect(third * 2, barY, third, 1.5, 'F');
+
+  // Summary stats
+  const summaryY = 36;
+  doc.setTextColor(28, 24, 16);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Summary', 14, summaryY);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(107, 99, 82);
+
+  const stats = [
+    `Total Staff: ${summary.total_staff}`,
+    `Clocked In: ${summary.clocked_in}`,
+    `Late: ${summary.late_arrivals}`,
+    `Left Early: ${summary.early_departures ?? 0}`,
+    `Rate: ${summary.attendance_rate}%`,
+  ];
+  stats.forEach((stat, i) => {
+    doc.text(stat, 14 + (i * 55), summaryY + 6);
+  });
+
+  // Table
+  const body = records.map(r => [
+    '', // photo — drawn via didDrawCell
+    r.name,
+    r.staff_id ?? '—',
+    r.directorate_abbr ?? '—',
+    r.clock_in_time
+      ? new Date(r.clock_in_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+      : 'Absent',
+    r.clock_out_time
+      ? `${new Date(r.clock_out_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}${r.is_early_departure ? ' ⚠' : ''}`
+      : '—',
+    !r.clock_in_time ? 'Absent' : r.is_late ? 'Late' : r.is_early_departure ? 'Left Early' : 'On Time',
+    r.current_streak > 0 ? `${r.current_streak}d` : '—',
+  ]);
+
+  const photoCellSize = 14; // mm
+
+  autoTable(doc, {
+    startY: summaryY + 12,
+    head: [['Photo', 'Name', 'Staff ID', 'Dir', 'Clock In', 'Clock Out', 'Status', 'Streak']],
+    body,
+    styles: {
+      fontSize: 9,
+      cellPadding: 2,
+      lineColor: [232, 223, 201],
+      lineWidth: 0.2,
+      minCellHeight: photoCellSize + 2,
+      valign: 'middle',
+    },
+    headStyles: {
+      fillColor: [26, 77, 46],
+      textColor: 255,
+      fontSize: 9,
+      fontStyle: 'bold',
+      minCellHeight: 8,
+    },
+    alternateRowStyles: { fillColor: [254, 252, 246] },
+    columnStyles: {
+      0: { cellWidth: photoCellSize + 4, halign: 'center' },
+      1: { cellWidth: 55 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 18 },
+      4: { cellWidth: 24 },
+      5: { cellWidth: 24 },
+      6: { cellWidth: 22 },
+      7: { cellWidth: 18 },
+    },
+    margin: { left: 14, right: 14 },
+    didDrawCell: (data) => {
+      if (data.section !== 'body' || data.column.index !== 0) return;
+      const row = records[data.row.index];
+      if (!row) return;
+      const dataUrl = photoMap.get(row.user_id);
+      if (!dataUrl) return;
+      const x = data.cell.x + (data.cell.width - photoCellSize) / 2;
+      const y = data.cell.y + (data.cell.height - photoCellSize) / 2;
+      try {
+        doc.addImage(dataUrl, 'JPEG', x, y, photoCellSize, photoCellSize);
+      } catch {
+        // bad image data — skip silently
+      }
+    },
+  });
+
+  // Footer
+  const pageCount = (doc as unknown as { getNumberOfPages: () => number }).getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(156, 146, 128);
+    doc.text(
+      'Generated by OHCS SmartGate \u2014 Staff Attendance System',
+      14,
+      doc.internal.pageSize.getHeight() - 8,
+    );
+    doc.text(
+      `Page ${i} of ${pageCount}`,
+      pageWidth - 14,
+      doc.internal.pageSize.getHeight() - 8,
+      { align: 'right' },
     );
   }
 
