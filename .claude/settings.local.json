@@ -83,7 +83,23 @@
       "mcp__claude_ai_Cloudflare_Developer_Platform__workers_list",
       "mcp__claude_ai_Cloudflare_Developer_Platform__kv_namespaces_list",
       "mcp__claude_ai_Cloudflare_Developer_Platform__r2_buckets_list",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "mcp__claude_ai_Cloudflare_Developer_Platform_2__accounts_list",
+      "mcp__claude_ai_Cloudflare_Developer_Platform_2__set_active_account",
+      "mcp__claude_ai_Cloudflare_Developer_Platform_2__d1_databases_list",
+      "mcp__claude_ai_Cloudflare_Developer_Platform_2__kv_namespaces_list",
+      "mcp__claude_ai_Cloudflare_Developer_Platform_2__r2_buckets_list",
+      "mcp__claude_ai_Cloudflare_Developer_Platform_2__r2_bucket_create",
+      "Bash(CLOUDFLARE_ACCOUNT_ID=f4f236a6cd8fbddf397c6e9de17d8113 node ../../node_modules/wrangler/bin/wrangler.js d1 execute smartgate-db --remote --file=src/db/schema.sql)",
+      "mcp__claude_ai_Cloudflare_Developer_Platform_2__d1_database_query",
+      "Bash(CLOUDFLARE_ACCOUNT_ID=f4f236a6cd8fbddf397c6e9de17d8113 node ../../node_modules/wrangler/bin/wrangler.js d1 execute smartgate-db --remote --file=src/db/seed.sql)",
+      "Bash(CLOUDFLARE_ACCOUNT_ID=f4f236a6cd8fbddf397c6e9de17d8113 node ../../node_modules/wrangler/bin/wrangler.js deploy)",
+      "Bash(CLOUDFLARE_ACCOUNT_ID=f4f236a6cd8fbddf397c6e9de17d8113 node ../../node_modules/wrangler/bin/wrangler.js pages deploy dist --project-name=ohcs-smartgate --branch=main --commit-dirty=true)",
+      "Bash(CLOUDFLARE_ACCOUNT_ID=f4f236a6cd8fbddf397c6e9de17d8113 node -e \"console.log\\('with-prefix CLOUDFLARE_ACCOUNT_ID=' + process.env.CLOUDFLARE_ACCOUNT_ID\\)\")",
+      "Bash(rm -f \"C:/Users/USER/OneDrive - Smart Workplace/Desktop/Projects/OHCS SmartGate & Staff Attendance/packages/staff/node_modules/.cache/wrangler/pages.json\")",
+      "Bash(CLOUDFLARE_ACCOUNT_ID=f4f236a6cd8fbddf397c6e9de17d8113 node ../../node_modules/wrangler/bin/wrangler.js pages deploy dist --project-name=staff-attendance --branch=main --commit-dirty=true)"
     ]
   }
 }

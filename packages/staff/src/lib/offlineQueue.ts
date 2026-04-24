@@ -56,7 +56,7 @@ export async function apiOrQueue<T>(
   const idempotency_key = crypto.randomUUID();
   const fullBody = { ...body, idempotency_key };
   const token = getToken();
-  const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
+  const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ohcsghana-main.workers.dev' : '';
   const url = `${apiBase}/api${endpoint}`;
   let res: Response;
   try {

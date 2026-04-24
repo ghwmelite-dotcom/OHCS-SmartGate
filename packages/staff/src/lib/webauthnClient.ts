@@ -10,7 +10,7 @@ import type {
 } from '@simplewebauthn/types';
 import { getToken } from './tokenStore';
 
-const API_BASE = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
+const API_BASE = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ohcsghana-main.workers.dev' : '';
 
 const LAST_STAFF_ID_KEY = 'ohcs.last_staff_id';
 

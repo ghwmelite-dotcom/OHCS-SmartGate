@@ -1,6 +1,6 @@
 import { getToken } from './tokenStore';
 
-const API_BASE = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
+const API_BASE = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ohcsghana-main.workers.dev' : '';
 
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   const token = getToken();

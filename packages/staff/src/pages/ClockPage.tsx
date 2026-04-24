@@ -72,7 +72,7 @@ export function ClockPage() {
       const { photo, ...clockData } = data;
       const res = await apiOrQueue<ClockResult>('clock-queue', '/clock', clockData);
       if (!('queued' in res) && res.data && photo) {
-        const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : '';
+        const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ohcsghana-main.workers.dev' : '';
         const token = getToken();
         try {
           const uploadRes = await fetch(`${apiBase}/api/clock/${res.data.id}/photo`, {

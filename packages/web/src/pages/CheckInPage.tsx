@@ -160,7 +160,7 @@ export function CheckInPage() {
     if (!selectedVisitor) return;
     try {
       const arrayBuffer = await blob.arrayBuffer();
-      await fetch(`${import.meta.env.PROD ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev' : ''}/api/photos/visitors/${selectedVisitor.id}/photo`, {
+      await fetch(`${import.meta.env.PROD ? 'https://ohcs-smartgate-api.ohcsghana-main.workers.dev' : ''}/api/photos/visitors/${selectedVisitor.id}/photo`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'image/jpeg' },
@@ -856,7 +856,7 @@ function BadgeQRCode({ badgeCode }: { badgeCode: string }) {
   useEffect(() => {
     if (canvasRef.current) {
       const apiBase = import.meta.env.PROD
-        ? 'https://ohcs-smartgate-api.ghwmelite.workers.dev'
+        ? 'https://ohcs-smartgate-api.ohcsghana-main.workers.dev'
         : 'http://localhost:8787';
       const badgeUrl = `${apiBase}/badge/${badgeCode}`;
       QRCode.toCanvas(canvasRef.current, badgeUrl, {

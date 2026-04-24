@@ -20,11 +20,11 @@ VAPID_SUBJECT = "mailto:ops@ohcs.gov.gh"
 [[d1_databases]]
 binding = "DB"
 database_name = "smartgate-db"
-database_id = "4346dcc7-0a1e-488a-a97f-5273072d4d14"
+database_id = "051e7d97-6909-426b-9574-331edf1ef351"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "1357cc4c47b24cdf9001ad6ea06a705d"
+id = "95f4d6f18edf49e089234c5b7b462ccd"
 
 [[r2_buckets]]
 binding = "STORAGE"
@@ -42,11 +42,11 @@ VAPID_SUBJECT = "mailto:ops@ohcs.gov.gh"
 [[env.dev.d1_databases]]
 binding = "DB"
 database_name = "smartgate-db"
-database_id = "4346dcc7-0a1e-488a-a97f-5273072d4d14"
+database_id = "051e7d97-6909-426b-9574-331edf1ef351"
 
 [[env.dev.kv_namespaces]]
 binding = "KV"
-id = "1357cc4c47b24cdf9001ad6ea06a705d"
+id = "95f4d6f18edf49e089234c5b7b462ccd"
 
 [[env.dev.r2_buckets]]
 binding = "STORAGE"
