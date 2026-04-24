@@ -36,7 +36,7 @@ jobs:
 
       # ───── Gate: typecheck all three packages before any deploy ─────
       - name: Typecheck api
-        run: node node_modules/typescript/bin/tsc --noEmit
+        run: node ../../node_modules/typescript/bin/tsc --noEmit
         working-directory: packages/api
 
       - name: Typecheck web
