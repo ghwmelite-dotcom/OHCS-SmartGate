@@ -2,6 +2,7 @@
 
 _A secure, offline-capable platform for the Office of the Head of Civil Service, Ghana — combining visitor management with GPS-verified staff attendance._
 
+[![Deploy to Cloudflare](https://github.com/ghwmelite-dotcom/OHCS-SmartGate-Staff-Attendance-System/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/ghwmelite-dotcom/OHCS-SmartGate-Staff-Attendance-System/actions/workflows/deploy.yml)
 [![Tech — Cloudflare Workers](https://img.shields.io/badge/api-Cloudflare%20Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![Tech — D1](https://img.shields.io/badge/db-D1%20SQLite-003B57?logo=sqlite&logoColor=white)](https://developers.cloudflare.com/d1/)
 [![Tech — React 18](https://img.shields.io/badge/frontend-React%2018-61DAFB?logo=react&logoColor=black)](https://react.dev/)
