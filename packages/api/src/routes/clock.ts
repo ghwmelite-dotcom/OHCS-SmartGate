@@ -16,10 +16,10 @@ export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: Sessi
 // centre rule, which let users on the road across from the building clock in.
 type LatLng = readonly [number, number];
 const OHCS_POLYGON: readonly LatLng[] = [
-  [5.552442263884538, -0.1977421643383777],
-  [5.552519712150007, -0.19777261304724877],
-  [5.552735220313383, -0.1971196574014586],
-  [5.552656649637954, -0.19709146415250392],
+  [5.552642231596962, -0.19766533600075373],
+  [5.55270572629351, -0.19769244846778028],
+  [5.552780332553211, -0.19748033328457254],
+  [5.552717631548359, -0.19743727230753033],
 ];
 
 // Reject a clock-in if the device can't localise to better than this many
