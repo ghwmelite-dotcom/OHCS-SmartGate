@@ -116,7 +116,7 @@ self.addEventListener('message', (event) => {
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch {}
-  const title = data.title || 'OHCS SmartGate';
+  const title = data.title || 'OHCS VMS';
   const options = {
     body: data.body || '',
     icon: '/icons/icon-192.png',

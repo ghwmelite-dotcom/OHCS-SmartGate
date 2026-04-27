@@ -84,7 +84,7 @@ async function sendDailyReport(env: Env): Promise<void> {
     '',
     dirLines ? `<b>By Directorate:</b>\n${dirLines}` : '',
     '',
-    `\u2014 OHCS SmartGate`,
+    `\u2014 OHCS Staff Attendance`,
   ].filter(Boolean).join('\n');
 
   await sendToAdminSubscribers(message, env);
