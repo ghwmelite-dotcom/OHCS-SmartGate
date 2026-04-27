@@ -60,11 +60,11 @@ export function Sidebar({ forceExpanded }: SidebarProps) {
             <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
           </div>
           {!collapsed && (
-            <div className="overflow-hidden">
-              <h1 className="font-bold text-[15px] tracking-wide text-white whitespace-nowrap" style={{ fontFamily: 'var(--font-display)' }}>
-                SmartGate
+            <div className="overflow-hidden leading-tight">
+              <h1 className="font-bold text-[16px] tracking-wide text-white whitespace-nowrap" style={{ fontFamily: 'var(--font-display)' }}>
+                OHCS <span style={{ color: '#D4A017' }}>VMS</span>
               </h1>
-              <p className="text-[10px] tracking-[0.12em] uppercase text-accent/70 font-medium leading-tight whitespace-nowrap">
+              <p className="text-[9px] tracking-[0.08em] uppercase text-accent/75 font-semibold whitespace-nowrap mt-1">
                 Visitor Management System
               </p>
             </div>
