@@ -28,6 +28,13 @@ const OHCS_POLYGON: readonly LatLng[] = [
 // inside the polygon), so we only trust readings the device is confident in.
 const MAX_GPS_ACCURACY_METERS = 30;
 
+// Flat allowance outside the polygon. Absorbs both satellite-image alignment
+// error (the user-traced corners are only as accurate as Google's imagery)
+// and routine GPS jitter for staff genuinely at the building. This re-opens
+// the across-the-street false-positive window the strict rule had closed —
+// kept anyway because indoor staff were being rejected by 19m.
+const WALL_BUFFER_METERS = 20;
+
 // Ray-casting: cast a horizontal ray east from the point and count crossings.
 function pointInPolygon(lat: number, lng: number, poly: readonly LatLng[]): boolean {
   let inside = false;
@@ -118,15 +125,11 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     );
   }
 
-  // Check geofence — strict point-in-polygon. No wall buffer, no accuracy
-  // forgiveness: any buffer let users on the road across from the building
-  // pass, and accuracy forgiveness is one-sided in the wrong direction
-  // (worse GPS makes the rule looser, not stricter). The accuracy gate above
-  // handles GPS quality; this rule handles location.
+  // Check geofence — inside the polygon, or within the flat wall buffer.
   const inside = pointInPolygon(latitude, longitude, OHCS_POLYGON);
   const distance = inside ? 0 : distanceToPolygonMeters(latitude, longitude, OHCS_POLYGON);
   const acc = accuracy && accuracy > 0 ? accuracy : 0;
-  const withinGeofence = inside;
+  const withinGeofence = inside || distance <= WALL_BUFFER_METERS;
   devLog(c.env, `[CLOCK_GEO] inside=${inside} dist=${Math.round(distance)}m acc=${Math.round(acc)}m -> ${withinGeofence ? 'IN' : 'OUT'}`);
 
   if (!withinGeofence) {

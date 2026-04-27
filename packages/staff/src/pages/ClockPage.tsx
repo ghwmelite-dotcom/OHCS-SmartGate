@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { getToken } from '@/lib/tokenStore';
 import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, formatTime } from '@/lib/utils';
-import { pointInPolygon, distanceToPolygonMeters, MAX_GPS_ACCURACY_METERS } from '@/lib/geofence';
+import { withinGeofence, distanceToPolygonMeters, MAX_GPS_ACCURACY_METERS } from '@/lib/geofence';
 import { useAuthStore } from '@/stores/auth';
 import {
   LogIn, LogOut, MapPin, Camera, RotateCcw, Check, Flame, Trophy,
@@ -164,10 +164,9 @@ export function ClockPage() {
         setPhase('error');
         return;
       }
-      const inside = pointInPolygon(pos.lat, pos.lng);
-      if (!inside) {
+      if (!withinGeofence(pos.lat, pos.lng)) {
         const distance = Math.round(distanceToPolygonMeters(pos.lat, pos.lng));
-        setErrorMsg(`You are ${distance}m outside the OHCS building. You must be inside the building to clock ${type === 'clock_in' ? 'in' : 'out'}.`);
+        setErrorMsg(`You are ${distance}m outside the OHCS building. You must be at the building to clock ${type === 'clock_in' ? 'in' : 'out'}.`);
         setPhase('error');
         return;
       }

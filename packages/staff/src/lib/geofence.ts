@@ -54,5 +54,11 @@ export function distanceToPolygonMeters(lat: number, lng: number, poly: readonly
   return min;
 }
 
-// Mirrors server: inside polygon AND accuracy gate met.
+// Mirrors server: inside polygon (or within wall buffer) AND accuracy gate met.
 export const MAX_GPS_ACCURACY_METERS = 30;
+export const WALL_BUFFER_METERS = 20;
+
+export function withinGeofence(lat: number, lng: number): boolean {
+  if (pointInPolygon(lat, lng)) return true;
+  return distanceToPolygonMeters(lat, lng) <= WALL_BUFFER_METERS;
+}
