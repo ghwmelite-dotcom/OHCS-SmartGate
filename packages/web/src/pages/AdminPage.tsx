@@ -8,6 +8,8 @@ import { cn, formatDate } from '@/lib/utils';
 import { DirectoratesTab } from '@/components/admin/DirectoratesTab';
 import { BulkImportTab } from '@/components/admin/BulkImportTab';
 import { AttendanceTab } from '@/components/admin/AttendanceTab';
+import { NssRegistrationModal } from '@/components/admin/NssRegistrationModal';
+import { UserRoleToggle } from '@/components/admin/UserRoleToggle';
 import {
   Users,
   UserPlus,
@@ -17,6 +19,7 @@ import {
   X,
   Check,
   KeyRound,
+  GraduationCap,
 } from 'lucide-react';
 
 interface UserRecord {
@@ -30,11 +33,13 @@ interface UserRecord {
   is_active: number;
   last_login_at: string | null;
   created_at: string;
+  user_type?: string | null;
 }
 
 const ROLES = [
   { value: 'superadmin', label: 'Super Admin', color: 'bg-secondary/10 text-secondary' },
   { value: 'admin', label: 'Admin', color: 'bg-accent/15 text-accent-warm' },
+  { value: 'f_and_a_admin', label: 'F&A Admin', color: 'bg-secondary/10 text-secondary' },
   { value: 'receptionist', label: 'Receptionist', color: 'bg-primary/10 text-primary' },
   { value: 'it', label: 'IT Support', color: 'bg-info/10 text-info' },
   { value: 'director', label: 'Director', color: 'bg-accent/10 text-accent-warm' },
@@ -46,7 +51,7 @@ const createUserSchema = z.object({
   email: z.string().email('Invalid email').max(255),
   staff_id: z.string().min(1, 'Staff ID is required').max(20),
   pin: z.string().length(4, 'PIN must be 4 digits').regex(/^\d{4}$/, 'PIN must be 4 digits'),
-  role: z.enum(['superadmin', 'admin', 'receptionist', 'it', 'director', 'staff']),
+  role: z.enum(['superadmin', 'admin', 'f_and_a_admin', 'receptionist', 'it', 'director', 'staff']),
   grade: z.string().max(100).optional(),
   directorate_code: z.string().max(20).optional(),
 });
@@ -56,7 +61,7 @@ const editUserSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email().max(255),
   staff_id: z.string().min(1).max(20),
-  role: z.enum(['superadmin', 'admin', 'receptionist', 'it', 'director', 'staff']),
+  role: z.enum(['superadmin', 'admin', 'f_and_a_admin', 'receptionist', 'it', 'director', 'staff']),
   grade: z.string().max(100).optional(),
   directorate_code: z.string().max(20).optional(),
   pin: z.string().length(4).regex(/^\d{4}$/).or(z.literal('')).optional(),
@@ -112,6 +117,7 @@ export function AdminPage() {
 function UsersTab() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [showNss, setShowNss] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -131,8 +137,15 @@ function UsersTab() {
 
   return (
     <div className="space-y-6">
-      {/* Add User button */}
-      <div className="flex justify-end">
+      {/* Add User / Register NSS buttons */}
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => setShowNss(true)}
+          className="inline-flex items-center gap-2 h-11 px-5 bg-surface text-foreground text-[14px] font-semibold rounded-xl border border-border hover:border-primary/40 transition-all active:scale-[0.98]"
+        >
+          <GraduationCap className="h-4.5 w-4.5 text-primary" />
+          Register NSS
+        </button>
         <button
           onClick={() => { setShowCreate(true); setEditingUser(null); }}
           className="inline-flex items-center gap-2 h-11 px-5 bg-primary text-white text-[14px] font-semibold rounded-xl hover:bg-primary-light transition-all shadow-lg shadow-primary/15 active:scale-[0.98]"
@@ -141,6 +154,8 @@ function UsersTab() {
           Add User
         </button>
       </div>
+
+      {showNss && <NssRegistrationModal onClose={() => setShowNss(false)} />}
 
       {/* Create / Edit modal */}
       {showCreate && (
@@ -458,6 +473,8 @@ function EditUserModal({ user, onClose, onSuccess }: { user: UserRecord; onClose
               {mutation.error instanceof Error ? mutation.error.message : 'Failed to update user'}
             </p>
           )}
+
+          <UserRoleToggle user={user} />
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="h-11 px-5 text-[14px] text-muted hover:text-foreground transition-colors">

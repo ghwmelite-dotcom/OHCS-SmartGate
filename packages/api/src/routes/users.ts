@@ -19,6 +19,7 @@ userRoutes.get('/', async (c) => {
 
   const results = await c.env.DB.prepare(
     `SELECT u.id, u.name, u.email, u.staff_id, u.role, u.grade, u.is_active, u.last_login_at, u.created_at,
+            u.user_type, u.nss_number, u.nss_start_date, u.nss_end_date,
             d.abbreviation as directorate_abbr
      FROM users u LEFT JOIN directorates d ON u.directorate_id = d.id
      ORDER BY u.created_at DESC`
@@ -33,7 +34,9 @@ userRoutes.get('/:id', async (c) => {
 
   const id = c.req.param('id');
   const user = await c.env.DB.prepare(
-    'SELECT id, name, email, staff_id, role, is_active, last_login_at, created_at, updated_at FROM users WHERE id = ?'
+    `SELECT id, name, email, staff_id, role, is_active, last_login_at, created_at, updated_at,
+            user_type, nss_number, nss_start_date, nss_end_date
+     FROM users WHERE id = ?`
   ).bind(id).first();
 
   if (!user) return notFound(c, 'User');
@@ -105,8 +108,20 @@ userRoutes.put('/:id', zValidator('json', updateUserSchema), async (c) => {
   const id = c.req.param('id');
   const body = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(id).first();
+  const existing = await c.env.DB.prepare(
+    'SELECT id, user_type FROM users WHERE id = ?'
+  ).bind(id).first<{ id: string; user_type: string }>();
   if (!existing) return notFound(c, 'User');
+
+  // NSS personnel are not eligible for admin roles. Block any role change on
+  // NSS users that would land outside of plain 'staff'.
+  if (
+    body.role !== undefined &&
+    body.role !== 'staff' &&
+    existing.user_type === 'nss'
+  ) {
+    return error(c, 'NSS_NOT_PROMOTABLE', 'NSS personnel cannot be promoted to admin roles', 400);
+  }
 
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -140,7 +155,9 @@ userRoutes.put('/:id', zValidator('json', updateUserSchema), async (c) => {
   }
 
   const user = await c.env.DB.prepare(
-    'SELECT id, name, email, staff_id, role, is_active, last_login_at, created_at, updated_at FROM users WHERE id = ?'
+    `SELECT id, name, email, staff_id, role, is_active, last_login_at, created_at, updated_at,
+            user_type, nss_number, nss_start_date, nss_end_date
+     FROM users WHERE id = ?`
   ).bind(id).first();
 
   return success(c, user);
