@@ -9,31 +9,39 @@ import { devLog } from '../lib/log';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
-// OHCS Building geofence — actual building footprint (Office of The Head of
-// Civil Service, Accra). Corners traced from Google Maps satellite view.
-// Order: walk around the perimeter (winding direction is irrelevant for the
-// ray-casting point-in-polygon test). Replaces the previous radius-around-
-// centre rule, which let users on the road across from the building clock in.
+// OHCS building footprints (Office of The Head of Civil Service, Accra).
+// Corners traced from Google Maps satellite view. Each polygon is one
+// building; a clock-in is allowed if the user is inside ANY of them. Order
+// within a polygon is the perimeter walk; winding direction is irrelevant
+// for the ray-casting test.
 type LatLng = readonly [number, number];
-const OHCS_POLYGON: readonly LatLng[] = [
-  [5.552642231596962, -0.19766533600075373],
-  [5.55270572629351, -0.19769244846778028],
-  [5.552780332553211, -0.19748033328457254],
-  [5.552717631548359, -0.19743727230753033],
+const OHCS_POLYGONS: readonly (readonly LatLng[])[] = [
+  // Building 1 (~15m x 28m)
+  [
+    [5.552642231596962, -0.19766533600075373],
+    [5.55270572629351, -0.19769244846778028],
+    [5.552780332553211, -0.19748033328457254],
+    [5.552717631548359, -0.19743727230753033],
+  ],
+  // Building 2 (~16m x 27m)
+  [
+    [5.552807794779271, -0.1974000832414714],
+    [5.552879226292339, -0.19716723499524333],
+    [5.552814144247448, -0.19715288133622927],
+    [5.55273636325754, -0.19739370383746516],
+  ],
+  // Building 3 (~33m x 74m — the main block)
+  [
+    [5.552437120671583, -0.19774728898780675],
+    [5.552518292169384, -0.19777004828570785],
+    [5.552737266386741, -0.19712520151184268],
+    [5.5526598703364645, -0.1970986489976247],
+  ],
 ];
 
 // Reject a clock-in if the device can't localise to better than this many
-// metres. Tight cap: GPS error directly translates to false-positive risk
-// (a high-error fix on the road across from the building can be reported as
-// inside the polygon), so we only trust readings the device is confident in.
+// metres. Tight cap: GPS error directly translates to false-positive risk.
 const MAX_GPS_ACCURACY_METERS = 30;
-
-// Flat allowance outside the polygon. Absorbs both satellite-image alignment
-// error (the user-traced corners are only as accurate as Google's imagery)
-// and routine GPS jitter for staff genuinely at the building. This re-opens
-// the across-the-street false-positive window the strict rule had closed —
-// kept anyway because indoor staff were being rejected by 19m.
-const WALL_BUFFER_METERS = 20;
 
 // Ray-casting: cast a horizontal ray east from the point and count crossings.
 function pointInPolygon(lat: number, lng: number, poly: readonly LatLng[]): boolean {
@@ -76,6 +84,22 @@ function distanceToPolygonMeters(lat: number, lng: number, poly: readonly LatLng
     const a = poly[i] as LatLng;
     const b = poly[j] as LatLng;
     const d = distanceToSegmentMeters(lat, lng, a[0], a[1], b[0], b[1]);
+    if (d < min) min = d;
+  }
+  return min;
+}
+
+function insideAnyPolygon(lat: number, lng: number): boolean {
+  for (const poly of OHCS_POLYGONS) {
+    if (pointInPolygon(lat, lng, poly)) return true;
+  }
+  return false;
+}
+
+function distanceToNearestPolygonMeters(lat: number, lng: number): number {
+  let min = Infinity;
+  for (const poly of OHCS_POLYGONS) {
+    const d = distanceToPolygonMeters(lat, lng, poly);
     if (d < min) min = d;
   }
   return min;
@@ -125,11 +149,11 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     );
   }
 
-  // Check geofence — inside the polygon, or within the flat wall buffer.
-  const inside = pointInPolygon(latitude, longitude, OHCS_POLYGON);
-  const distance = inside ? 0 : distanceToPolygonMeters(latitude, longitude, OHCS_POLYGON);
+  // Check geofence — strict point-in-polygon across ALL OHCS buildings.
+  const inside = insideAnyPolygon(latitude, longitude);
+  const distance = inside ? 0 : distanceToNearestPolygonMeters(latitude, longitude);
   const acc = accuracy && accuracy > 0 ? accuracy : 0;
-  const withinGeofence = inside || distance <= WALL_BUFFER_METERS;
+  const withinGeofence = inside;
   devLog(c.env, `[CLOCK_GEO] inside=${inside} dist=${Math.round(distance)}m acc=${Math.round(acc)}m -> ${withinGeofence ? 'IN' : 'OUT'}`);
 
   if (!withinGeofence) {
