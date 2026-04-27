@@ -22,12 +22,11 @@ const OHCS_POLYGON: readonly LatLng[] = [
   [5.552656649637954, -0.19709146415250392],
 ];
 
-// How far outside the polygon we still treat as "at the building wall" — gives
-// staff right at the entrance some forgiveness when GPS drifts a few metres.
-const WALL_BUFFER_METERS = 10;
-
-// Reject a clock-in if the device can't localise to better than this many metres.
-const MAX_GPS_ACCURACY_METERS = 75;
+// Reject a clock-in if the device can't localise to better than this many
+// metres. Tight cap: GPS error directly translates to false-positive risk
+// (a high-error fix on the road across from the building can be reported as
+// inside the polygon), so we only trust readings the device is confident in.
+const MAX_GPS_ACCURACY_METERS = 30;
 
 // Ray-casting: cast a horizontal ray east from the point and count crossings.
 function pointInPolygon(lat: number, lng: number, poly: readonly LatLng[]): boolean {
@@ -119,12 +118,15 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     );
   }
 
-  // Check geofence — must be inside the OHCS building polygon, or within a
-  // small wall buffer (after forgiving half the GPS accuracy as drift).
+  // Check geofence — strict point-in-polygon. No wall buffer, no accuracy
+  // forgiveness: any buffer let users on the road across from the building
+  // pass, and accuracy forgiveness is one-sided in the wrong direction
+  // (worse GPS makes the rule looser, not stricter). The accuracy gate above
+  // handles GPS quality; this rule handles location.
   const inside = pointInPolygon(latitude, longitude, OHCS_POLYGON);
   const distance = inside ? 0 : distanceToPolygonMeters(latitude, longitude, OHCS_POLYGON);
   const acc = accuracy && accuracy > 0 ? accuracy : 0;
-  const withinGeofence = inside || (distance - acc * 0.5) <= WALL_BUFFER_METERS;
+  const withinGeofence = inside;
   devLog(c.env, `[CLOCK_GEO] inside=${inside} dist=${Math.round(distance)}m acc=${Math.round(acc)}m -> ${withinGeofence ? 'IN' : 'OUT'}`);
 
   if (!withinGeofence) {

@@ -139,12 +139,13 @@ export function ClockPage() {
     setPhotoPreview(null);
     setResult(null);
 
-    // Watch for the first fix that is good enough to trust (≤30m), or settle
-    // for the best reading we've seen after 12s. The first GPS fix is often
-    // a coarse WiFi/cell estimate — submitting on that was the source of
-    // same-spot inconsistency.
-    const ACCEPT_ACCURACY_M = 30;
-    const SETTLE_MS = 12_000;
+    // Watch for the first fix that is good enough to trust (≤15m), or settle
+    // for the best reading we've seen after 20s. Tight target because the
+    // server uses strict point-in-polygon membership — GPS error directly
+    // determines whether someone outside the building can be reported as
+    // inside it.
+    const ACCEPT_ACCURACY_M = 15;
+    const SETTLE_MS = 20_000;
     let best: { lat: number; lng: number; accuracy: number } | null = null;
     let watchId: number | null = null;
     let settled = false;
