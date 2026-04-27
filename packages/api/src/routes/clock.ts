@@ -43,6 +43,12 @@ const OHCS_POLYGONS: readonly (readonly LatLng[])[] = [
 // metres. Tight cap: GPS error directly translates to false-positive risk.
 const MAX_GPS_ACCURACY_METERS = 30;
 
+// Tight wall buffer to absorb 1-3m GPS edge jitter for staff genuinely
+// inside the building. Keep small — a typical road kerb sits 8-15m from
+// a building wall, so anything above ~7m starts re-opening the
+// across-the-street false positive we already closed.
+const WALL_BUFFER_METERS = 5;
+
 // Ray-casting: cast a horizontal ray east from the point and count crossings.
 function pointInPolygon(lat: number, lng: number, poly: readonly LatLng[]): boolean {
   let inside = false;
@@ -149,11 +155,11 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     );
   }
 
-  // Check geofence — strict point-in-polygon across ALL OHCS buildings.
+  // Check geofence — inside any OHCS polygon, or within the small wall buffer.
   const inside = insideAnyPolygon(latitude, longitude);
   const distance = inside ? 0 : distanceToNearestPolygonMeters(latitude, longitude);
   const acc = accuracy && accuracy > 0 ? accuracy : 0;
-  const withinGeofence = inside;
+  const withinGeofence = inside || distance <= WALL_BUFFER_METERS;
   devLog(c.env, `[CLOCK_GEO] inside=${inside} dist=${Math.round(distance)}m acc=${Math.round(acc)}m -> ${withinGeofence ? 'IN' : 'OUT'}`);
 
   if (!withinGeofence) {

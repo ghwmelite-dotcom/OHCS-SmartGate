@@ -72,12 +72,13 @@ function distanceToPolygonMetersOne(lat: number, lng: number, poly: readonly Lat
 }
 
 export const MAX_GPS_ACCURACY_METERS = 30;
+export const WALL_BUFFER_METERS = 5;
 
 export function withinGeofence(lat: number, lng: number): boolean {
   for (const poly of OHCS_POLYGONS) {
     if (pointInPolygon(lat, lng, poly)) return true;
   }
-  return false;
+  return distanceToPolygonMeters(lat, lng) <= WALL_BUFFER_METERS;
 }
 
 export function distanceToPolygonMeters(lat: number, lng: number): number {
