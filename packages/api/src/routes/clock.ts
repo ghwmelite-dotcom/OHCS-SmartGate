@@ -9,25 +9,70 @@ import { devLog } from '../lib/log';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
-// OHCS Building geofence — exact location (Office of The Head of Civil Service, Accra)
-const GEOFENCE = {
-  lat: 5.55269,
-  lng: -0.19752,
-  radiusMeters: 75,
-};
+// OHCS Building geofence — actual building footprint (Office of The Head of
+// Civil Service, Accra). Corners traced from Google Maps satellite view.
+// Order: walk around the perimeter (winding direction is irrelevant for the
+// ray-casting point-in-polygon test). Replaces the previous radius-around-
+// centre rule, which let users on the road across from the building clock in.
+type LatLng = readonly [number, number];
+const OHCS_POLYGON: readonly LatLng[] = [
+  [5.552442263884538, -0.1977421643383777],
+  [5.552519712150007, -0.19777261304724877],
+  [5.552735220313383, -0.1971196574014586],
+  [5.552656649637954, -0.19709146415250392],
+];
+
+// How far outside the polygon we still treat as "at the building wall" — gives
+// staff right at the entrance some forgiveness when GPS drifts a few metres.
+const WALL_BUFFER_METERS = 10;
 
 // Reject a clock-in if the device can't localise to better than this many metres.
-// Anything looser than this can pass the geofence purely on noise — see the
-// half-accuracy buffer below.
 const MAX_GPS_ACCURACY_METERS = 75;
 
-function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+// Ray-casting: cast a horizontal ray east from the point and count crossings.
+function pointInPolygon(lat: number, lng: number, poly: readonly LatLng[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [yi, xi] = poly[i] as LatLng;
+    const [yj, xj] = poly[j] as LatLng;
+    const intersect = ((yi > lat) !== (yj > lat))
+      && (lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Distance in metres from (lat,lng) to the closest point on segment AB.
+// Uses an equirectangular projection — accurate over the ~tens-of-metres
+// scale of a single building.
+function distanceToSegmentMeters(
+  lat: number, lng: number,
+  latA: number, lngA: number,
+  latB: number, lngB: number,
+): number {
   const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const cosLat = Math.cos(((latA + latB) / 2) * Math.PI / 180);
+  const x = (lng - lngA) * cosLat;
+  const y = lat - latA;
+  const dx = (lngB - lngA) * cosLat;
+  const dy = latB - latA;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 === 0 ? 0 : (x * dx + y * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const px = dx * t - x;
+  const py = dy * t - y;
+  return Math.sqrt(px * px + py * py) * (Math.PI / 180) * R;
+}
+
+function distanceToPolygonMeters(lat: number, lng: number, poly: readonly LatLng[]): number {
+  let min = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i] as LatLng;
+    const b = poly[j] as LatLng;
+    const d = distanceToSegmentMeters(lat, lng, a[0], a[1], b[0], b[1]);
+    if (d < min) min = d;
+  }
+  return min;
 }
 
 // Clock in or out
@@ -74,21 +119,20 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     );
   }
 
-  // Check geofence — forgive half the reported accuracy as drift. Forgiving
-  // the full accuracy (the previous behaviour) was one-sided: a 60m-accuracy
-  // reading would let a user 130m away clock in, while a tight 5m reading
-  // would reject the same user at 80m.
-  const distance = haversineDistance(latitude, longitude, GEOFENCE.lat, GEOFENCE.lng);
+  // Check geofence — must be inside the OHCS building polygon, or within a
+  // small wall buffer (after forgiving half the GPS accuracy as drift).
+  const inside = pointInPolygon(latitude, longitude, OHCS_POLYGON);
+  const distance = inside ? 0 : distanceToPolygonMeters(latitude, longitude, OHCS_POLYGON);
   const acc = accuracy && accuracy > 0 ? accuracy : 0;
-  const buffer = acc * 0.5;
-  const withinGeofence = distance - buffer <= GEOFENCE.radiusMeters;
+  const withinGeofence = inside || (distance - acc * 0.5) <= WALL_BUFFER_METERS;
+  devLog(c.env, `[CLOCK_GEO] inside=${inside} dist=${Math.round(distance)}m acc=${Math.round(acc)}m -> ${withinGeofence ? 'IN' : 'OUT'}`);
 
   if (!withinGeofence) {
     const accStr = acc > 0 ? ` (GPS accuracy \u00B1${Math.round(acc)}m)` : '';
     return error(
       c,
       'OUTSIDE_GEOFENCE',
-      `You are ${Math.round(distance)}m from OHCS${accStr}. Please be within ${GEOFENCE.radiusMeters}m to clock ${type === 'clock_in' ? 'in' : 'out'}.`,
+      `You are ${Math.round(distance)}m outside the OHCS building${accStr}. You must be inside the building to clock ${type === 'clock_in' ? 'in' : 'out'}.`,
       400,
     );
   }
