@@ -32,7 +32,7 @@ export function LinkTelegramPage() {
         <>
           <Loader2 className="h-10 w-10 text-primary mx-auto animate-spin" />
           <h2 className="text-lg font-semibold text-foreground">Linking Telegram...</h2>
-          <p className="text-sm text-muted">Connecting your Telegram account to SmartGate</p>
+          <p className="text-sm text-muted">Connecting your Telegram account to OHCS VMS</p>
         </>
       )}
 

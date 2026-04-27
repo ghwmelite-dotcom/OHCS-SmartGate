@@ -73,10 +73,10 @@ export function ReportsPage() {
 
       if (type === 'pdf') {
         const doc = generatePDF(summary, visits);
-        doc.save(`OHCS-SmartGate-Report-${from}.pdf`);
+        doc.save(`OHCS-VMS-Report-${from}.pdf`);
       } else {
         const csv = generateCSV(visits);
-        downloadCSV(csv, `OHCS-SmartGate-Export-${from}.csv`);
+        downloadCSV(csv, `OHCS-VMS-Export-${from}.csv`);
       }
     } finally {
       setGenerating(null);

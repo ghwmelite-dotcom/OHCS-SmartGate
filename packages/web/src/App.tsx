@@ -73,7 +73,7 @@ export function App() {
           animation: 'text-entrance 0.6s ease-out 0.3s both',
         }}>
           <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-            OHCS SmartGate
+            OHCS <span style={{ color: '#D4A017' }}>VMS</span>
           </h1>
 
           {/* Gold divider */}

@@ -64,7 +64,7 @@ export function VerifyBadgePage() {
           </div>
           <div>
             <h1 className="text-[15px] font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
-              SmartGate Security
+              OHCS <span style={{ color: '#D4A017' }}>VMS</span> Security
             </h1>
             <p className="text-[10px] text-[#D4A017]/70 tracking-wide uppercase">Badge Verification</p>
           </div>
@@ -207,7 +207,7 @@ export function VerifyBadgePage() {
       {/* Footer */}
       <div className="shrink-0 py-3 text-center">
         <p className="text-[10px] text-muted-foreground">
-          OHCS SmartGate Security Verification
+          OHCS VMS Security Verification
         </p>
       </div>
     </div>

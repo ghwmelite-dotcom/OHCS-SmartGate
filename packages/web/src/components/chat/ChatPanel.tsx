@@ -36,7 +36,7 @@ export function ChatPanel() {
         </div>
         <div>
           <h3 className="text-sm font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
-            SmartGate Assistant
+            OHCS <span style={{ color: '#D4A017' }}>VMS</span> Assistant
           </h3>
           <p className="text-[10px] text-accent/60 tracking-wide">Powered by AI</p>
         </div>

@@ -85,7 +85,7 @@ export function LoginPage() {
           </div>
 
           <h1 className="text-3xl font-bold text-white tracking-tight text-center" style={{ fontFamily: 'var(--font-display)' }}>
-            OHCS SmartGate
+            OHCS <span style={{ color: '#D4A017' }}>VMS</span>
           </h1>
 
           <div className="flex items-center gap-2 mt-3">
@@ -127,10 +127,10 @@ export function LoginPage() {
             <div className="w-20 h-20 rounded-2xl overflow-hidden ring-2 ring-accent/20 shadow-lg mx-auto mb-4">
               <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
             </div>
-            <h1 className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-              OHCS SmartGate
+            <h1 className="text-2xl font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+              OHCS <span style={{ color: '#D4A017' }}>VMS</span>
             </h1>
-            <p className="text-muted text-xs tracking-[0.15em] uppercase mt-1">Visitor Management System</p>
+            <p className="text-muted text-[11px] tracking-[0.18em] uppercase mt-1.5 font-semibold">Visitor Management System</p>
           </div>
 
           {/* Form card */}

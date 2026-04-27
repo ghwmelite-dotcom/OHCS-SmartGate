@@ -39,7 +39,7 @@ export function Header() {
               <UserPlus className="h-[8px] w-[8px] text-white" strokeWidth={2.5} />
             </div>
           </div>
-          <span className="text-[15px] font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>SmartGate</span>
+          <span className="text-[15px] font-bold text-foreground tracking-wide" style={{ fontFamily: 'var(--font-display)' }}>OHCS <span style={{ color: '#D4A017' }}>VMS</span></span>
         </div>
 
         <div className="hidden lg:flex items-center gap-2.5">
