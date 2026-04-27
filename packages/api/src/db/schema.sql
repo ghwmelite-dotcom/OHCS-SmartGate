@@ -7,14 +7,20 @@ CREATE TABLE IF NOT EXISTS users (
     staff_id    TEXT UNIQUE,
     pin_hash    TEXT,
     pin_acknowledged INTEGER NOT NULL DEFAULT 0 CHECK(pin_acknowledged IN (0, 1)),
-    role        TEXT NOT NULL DEFAULT 'staff' CHECK(role IN ('superadmin','admin','receptionist','it','director','staff')),
+    role        TEXT NOT NULL DEFAULT 'staff',
     grade       TEXT,
     is_active   INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
     last_login_at TEXT,
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    user_type        TEXT NOT NULL DEFAULT 'staff' CHECK(user_type IN ('staff','nss')),
+    nss_number       TEXT,
+    nss_start_date   TEXT,
+    nss_end_date     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nss_number_unique ON users(nss_number) WHERE nss_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_nss_active ON users(user_type, nss_end_date) WHERE user_type = 'nss';
 
 CREATE TABLE IF NOT EXISTS directorates (
     id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),

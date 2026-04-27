@@ -11,9 +11,41 @@ export interface Env {
   VAPID_SUBJECT: string;
 }
 
+export type Role =
+  | 'superadmin'
+  | 'admin'
+  | 'receptionist'
+  | 'it'
+  | 'director'
+  | 'staff'
+  | 'f_and_a_admin';
+
+export type UserType = 'staff' | 'nss';
+
 export interface SessionData {
   userId: string;
   email: string;
   role: string;
   name: string;
+}
+
+/**
+ * Shared user shape used across routes/services.
+ * NSS fields are populated only when `user_type === 'nss'`.
+ */
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  staff_id: string | null;
+  role: Role;
+  grade: string | null;
+  is_active: 0 | 1;
+  directorate_id: string | null;
+  user_type: UserType;
+  nss_number: string | null;
+  nss_start_date: string | null;
+  nss_end_date: string | null;
+  created_at: string;
+  updated_at: string;
 }

@@ -11,6 +11,7 @@ import clockIdempotency from './migration-clock-idempotency.sql';
 import visitsIdempotency from './migration-visits-idempotency.sql';
 import absenceNotices from './migration-absence-notices.sql';
 import notificationsIndex from './migration-notifications-index.sql';
+import nssFoundation from './migration-nss-foundation.sql';
 
 export const MIGRATIONS: Array<{ filename: string; sql: string }> = [
   { filename: 'migration-applied-migrations.sql', sql: appliedMigrations },
@@ -26,6 +27,7 @@ export const MIGRATIONS: Array<{ filename: string; sql: string }> = [
   { filename: 'migration-visits-idempotency.sql', sql: visitsIdempotency },
   { filename: 'migration-absence-notices.sql', sql: absenceNotices },
   { filename: 'migration-notifications-index.sql', sql: notificationsIndex },
+  { filename: 'migration-nss-foundation.sql', sql: nssFoundation },
 ];
 
 export async function sha256Hex(input: string): Promise<string> {

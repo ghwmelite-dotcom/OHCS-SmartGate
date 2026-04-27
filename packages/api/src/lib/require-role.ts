@@ -2,7 +2,14 @@ import type { Context } from 'hono';
 import type { Env, SessionData } from '../types';
 import { error } from './response';
 
-type Role = 'superadmin' | 'admin' | 'receptionist' | 'it' | 'director' | 'staff';
+export type Role =
+  | 'superadmin'
+  | 'admin'
+  | 'receptionist'
+  | 'it'
+  | 'director'
+  | 'staff'
+  | 'f_and_a_admin';
 
 export function requireRole(
   c: Context<{ Bindings: Env; Variables: { session: SessionData } }>,
