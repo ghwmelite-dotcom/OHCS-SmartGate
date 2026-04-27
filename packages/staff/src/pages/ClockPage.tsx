@@ -139,17 +139,50 @@ export function ClockPage() {
     setPhotoPreview(null);
     setResult(null);
 
-    navigator.geolocation.getCurrentPosition(
+    // Watch for the first fix that is good enough to trust (≤30m), or settle
+    // for the best reading we've seen after 12s. The first GPS fix is often
+    // a coarse WiFi/cell estimate — submitting on that was the source of
+    // same-spot inconsistency.
+    const ACCEPT_ACCURACY_M = 30;
+    const SETTLE_MS = 12_000;
+    let best: { lat: number; lng: number; accuracy: number } | null = null;
+    let watchId: number | null = null;
+    let settled = false;
+
+    const finish = (pos: { lat: number; lng: number; accuracy: number }) => {
+      if (settled) return;
+      settled = true;
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      setLocation(pos);
+      startCamera(type);
+    };
+
+    watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
-        startCamera(type);
+        const fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        if (!best || fix.accuracy < best.accuracy) best = fix;
+        if (fix.accuracy <= ACCEPT_ACCURACY_M) finish(fix);
       },
       (err) => {
+        if (settled) return;
+        settled = true;
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
         setErrorMsg(err.code === 1 ? 'Location access denied. Please enable GPS.' : 'Could not get your location. Please try again.');
         setPhase('error');
       },
-      { enableHighAccuracy: true, timeout: 15000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
+
+    setTimeout(() => {
+      if (settled) return;
+      if (best) finish(best);
+      else {
+        settled = true;
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        setErrorMsg('Could not get a confident GPS fix. Move outside or to a window and try again.');
+        setPhase('error');
+      }
+    }, SETTLE_MS);
   }
 
   // Camera

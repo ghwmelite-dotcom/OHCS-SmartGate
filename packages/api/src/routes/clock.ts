@@ -17,7 +17,9 @@ const GEOFENCE = {
 };
 
 // Reject a clock-in if the device can't localise to better than this many metres.
-const MAX_GPS_ACCURACY_METERS = 200;
+// Anything looser than this can pass the geofence purely on noise — see the
+// half-accuracy buffer below.
+const MAX_GPS_ACCURACY_METERS = 75;
 
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -72,11 +74,14 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     );
   }
 
-  // Check geofence — generous with GPS drift: if distance minus reported
-  // accuracy is within the radius, treat the user as inside.
+  // Check geofence — forgive half the reported accuracy as drift. Forgiving
+  // the full accuracy (the previous behaviour) was one-sided: a 60m-accuracy
+  // reading would let a user 130m away clock in, while a tight 5m reading
+  // would reject the same user at 80m.
   const distance = haversineDistance(latitude, longitude, GEOFENCE.lat, GEOFENCE.lng);
   const acc = accuracy && accuracy > 0 ? accuracy : 0;
-  const withinGeofence = distance <= GEOFENCE.radiusMeters || distance - acc <= GEOFENCE.radiusMeters;
+  const buffer = acc * 0.5;
+  const withinGeofence = distance - buffer <= GEOFENCE.radiusMeters;
 
   if (!withinGeofence) {
     const accStr = acc > 0 ? ` (GPS accuracy \u00B1${Math.round(acc)}m)` : '';
