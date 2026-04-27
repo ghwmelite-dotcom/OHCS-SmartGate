@@ -34,9 +34,16 @@ export function resolveRp(c: MinContext): RpConfig | null {
   if (!allowed.has(origin)) return null;
   try {
     const url = new URL(origin);
+    // The RP name is what shows in the OS/browser passkey prompt — match the
+    // brand of the app the user is actually authenticating against.
+    const rpName = url.hostname === 'ohcs-smartgate.pages.dev'
+      ? 'OHCS VMS'
+      : url.hostname === 'staff-attendance.pages.dev'
+        ? 'OHCS Staff Attendance'
+        : 'OHCS SmartGate';
     return {
       rpID: url.hostname,
-      rpName: 'OHCS SmartGate',
+      rpName,
       origin,
     };
   } catch {

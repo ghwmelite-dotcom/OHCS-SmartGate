@@ -37,7 +37,7 @@ function formatVisitorMessage(data: VisitNotifyData, recipientType: 'host' | 'di
       '',
       `At Reception \u2022 ${time}`,
       '',
-      `\u2014 OHCS SmartGate`,
+      `\u2014 OHCS VMS`,
     ].filter(Boolean).join('\n');
   }
 
@@ -50,7 +50,7 @@ function formatVisitorMessage(data: VisitNotifyData, recipientType: 'host' | 'di
     '',
     `Checked in at ${time}`,
     '',
-    `\u2014 OHCS SmartGate`,
+    `\u2014 OHCS VMS`,
   ].filter(Boolean).join('\n');
 }
 

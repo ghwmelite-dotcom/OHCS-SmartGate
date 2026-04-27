@@ -39,7 +39,7 @@ export function formatVisitorArrivalMessage(visitor: {
   });
 
   const lines = [
-    '\u{1F4CB} <b>Visitor Arrival \u2014 OHCS SmartGate</b>',
+    '\u{1F4CB} <b>Visitor Arrival \u2014 OHCS VMS</b>',
     '',
     `<b>${escapeHtml(visitor.first_name)} ${escapeHtml(visitor.last_name)}</b>${visitor.organisation ? ` (${escapeHtml(visitor.organisation)})` : ''}`,
   ];
