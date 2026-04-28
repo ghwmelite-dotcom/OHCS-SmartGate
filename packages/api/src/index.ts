@@ -27,6 +27,7 @@ import { notificationsPushRoutes } from './routes/notifications-push';
 import { attendanceRoutes } from './routes/attendance';
 import { sendDailySummary as sendDailySummaryFn } from './services/daily-summary';
 import { sendClockReminders, sendMonthlyReportReady } from './services/reminders';
+import { runNssEndOfServiceCheck } from './services/nss-eos';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
 
@@ -134,6 +135,9 @@ export default {
         case '0 16 * * 5':
         case '0 9 1 1 *':
           await sendDailySummaryFn(env);
+          break;
+        case '30 0 * * *':
+          await runNssEndOfServiceCheck(env);
           break;
         default:
           console.warn(`[scheduled] unknown cron: ${event.cron}`);

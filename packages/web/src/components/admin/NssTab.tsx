@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Directorate } from '@/lib/api';
 import { cn, formatTime } from '@/lib/utils';
 import { toast } from '@/stores/toast';
+import { useAuthStore } from '@/stores/auth';
 import { downloadCSV } from '@/lib/csv';
 import { generateNssReportPdf, type NssReportRow, type NssReportSummary } from '@/lib/pdf';
 import { NssRegistrationModal } from './NssRegistrationModal';
@@ -10,7 +11,7 @@ import { NssDetailModal } from './NssDetailModal';
 import {
   GraduationCap, Users, CheckCircle2, AlertTriangle, CalendarClock,
   Search, X, MoreVertical, Eye, Pencil, KeyRound, Power, AlertCircle, Loader2,
-  FileDown, FileText, FileSpreadsheet,
+  FileDown, FileText, FileSpreadsheet, PlayCircle,
 } from 'lucide-react';
 
 /* ---- Types ---- */
@@ -59,6 +60,8 @@ function daysUntil(iso: string | null): number | null {
 
 export function NssTab() {
   const qc = useQueryClient();
+  const currentUser = useAuthStore(s => s.user);
+  const canRunEos = currentUser?.role === 'superadmin' || currentUser?.role === 'f_and_a_admin';
   const [status, setStatus] = useState<StatusFilter>('active');
   const [directorateId, setDirectorateId] = useState('');
   const [search, setSearch] = useState('');
@@ -70,6 +73,7 @@ export function NssTab() {
   const [resetPinUser, setResetPinUser] = useState<NssListRow | null>(null);
   const [endServiceUser, setEndServiceUser] = useState<NssListRow | null>(null);
   const [resetPinResult, setResetPinResult] = useState<{ user: NssListRow; pin: string } | null>(null);
+  const [runningEos, setRunningEos] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -178,6 +182,35 @@ export function NssTab() {
       toast.error(err instanceof Error ? err.message : 'Failed to end service');
     } finally {
       setEndServiceUser(null);
+    }
+  }
+
+  async function handleRunEos() {
+    if (runningEos) return;
+    setRunningEos(true);
+    try {
+      const res = await api.post<{ deactivated: number; expiring_soon: number }>(
+        '/admin/nss/run-eos',
+        {},
+      );
+      const d = res.data;
+      if (d) {
+        const parts = [
+          `${d.deactivated} auto-deactivated`,
+          `${d.expiring_soon} ending in 7d`,
+        ];
+        toast.success(`EOS check ran — ${parts.join(' · ')}`);
+        if (d.deactivated > 0) {
+          qc.invalidateQueries({ queryKey: ['nss-users'] });
+          qc.invalidateQueries({ queryKey: ['nss-today'] });
+        }
+      } else {
+        toast.error(res.error?.message ?? 'EOS check failed');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to run EOS check');
+    } finally {
+      setRunningEos(false);
     }
   }
 
@@ -449,6 +482,25 @@ export function NssTab() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {canRunEos && (
+          <div className="flex items-center justify-between gap-3 px-6 py-3 border-t border-border bg-background/40">
+            <p className="text-[12px] text-muted">
+              End-of-service runs daily at 00:30 GMT. Run it now to verify or catch up.
+            </p>
+            <button
+              type="button"
+              onClick={handleRunEos}
+              disabled={runningEos}
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 text-[12px] font-semibold text-foreground bg-surface border border-border rounded-xl hover:border-accent/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {runningEos
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <PlayCircle className="h-3.5 w-3.5 text-accent-warm" />}
+              Run end-of-service check
+            </button>
           </div>
         )}
       </div>

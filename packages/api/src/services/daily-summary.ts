@@ -157,7 +157,7 @@ async function sendPeriodicReport(type: SummaryType, env: Env): Promise<void> {
 }
 
 // Send message to all admin Telegram subscribers
-async function sendToAdminSubscribers(message: string, env: Env): Promise<void> {
+export async function sendToAdminSubscribers(message: string, env: Env): Promise<void> {
   if (!env.TELEGRAM_BOT_TOKEN) return;
 
   // Send to the primary admin subscriber

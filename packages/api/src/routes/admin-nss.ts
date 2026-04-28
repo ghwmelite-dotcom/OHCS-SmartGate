@@ -6,6 +6,7 @@ import { success, error, created, notFound } from '../lib/response';
 import { hashPin } from '../services/auth';
 import { requireRole } from '../lib/require-role';
 import { getAppSettings, toSqlTime } from '../services/settings';
+import { runNssEndOfServiceCheck } from '../services/nss-eos';
 
 export const adminNssRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
@@ -298,12 +299,29 @@ adminNssRoutes.get('/export', async (c) => {
   const settings = await getAppSettings(c.env);
   const lateAfter = toSqlTime(settings.late_threshold_time);
 
-  // Working days in the range = Monday..Friday count between [from, to] inclusive.
-  // Computed in JS to avoid SQLite timezone surprises.
+  // Working days in the requested range = Monday..Friday count between [from, to] inclusive.
+  // Computed in JS to avoid SQLite timezone surprises. This is the *headline* figure shown
+  // in the export summary; per-user denominators are clamped further below to each user's
+  // actual posting window (so an NSS user who started mid-range isn't unfairly counted absent
+  // for days before their nss_start_date).
   let workingDays = 0;
   for (let t = fromMs; t <= toMs; t += 86400_000) {
     const dow = new Date(t).getUTCDay(); // 0 = Sun, 6 = Sat
     if (dow !== 0 && dow !== 6) workingDays += 1;
+  }
+
+  // Helper — Monday..Friday count between two ISO dates inclusive.
+  // Returns 0 if the clamped window is empty (e.g. posting starts after `to`).
+  function workingDaysBetween(startIso: string, endIso: string): number {
+    const startMs = new Date(`${startIso}T00:00:00Z`).getTime();
+    const endMs = new Date(`${endIso}T00:00:00Z`).getTime();
+    if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) return 0;
+    let n = 0;
+    for (let t = startMs; t <= endMs; t += 86400_000) {
+      const dow = new Date(t).getUTCDay();
+      if (dow !== 0 && dow !== 6) n += 1;
+    }
+    return n;
   }
 
   // Aggregate per-user clock activity inside the range.
@@ -353,20 +371,35 @@ adminNssRoutes.get('/export', async (c) => {
       late_count: number;
     }>();
 
-  const rows: NssExportRow[] = (result.results ?? []).map(r => ({
-    user_id: r.user_id,
-    name: r.name,
-    nss_number: r.nss_number,
-    directorate_abbr: r.directorate_abbr,
-    nss_start_date: r.nss_start_date,
-    nss_end_date: r.nss_end_date,
-    current_streak: r.current_streak ?? 0,
-    clock_ins: r.clock_ins ?? 0,
-    late_count: r.late_count ?? 0,
-    // Absent = working days they missed during the range, clamped at 0.
-    // (We don't subtract their posting window here; F&A wants a quick rollup.)
-    absent_days: Math.max(0, workingDays - (r.clock_ins ?? 0)),
-  }));
+  const rows: NssExportRow[] = (result.results ?? []).map(r => {
+    // Clamp the per-user working-days denominator to the intersection of
+    // [from, to] and the NSS user's actual posting window
+    // [nss_start_date, nss_end_date]. Without this an NSS user who started
+    // mid-range would be marked absent for every working day before they
+    // even arrived (and same after their service ends).
+    //
+    // Pseudocode:
+    //   effectiveStart = max(from, nss_start_date ?? from)
+    //   effectiveEnd   = min(to,   nss_end_date   ?? to)
+    //   userWorkingDays = workingDaysBetween(effectiveStart, effectiveEnd)  // 0 if empty
+    //   absent_days     = max(0, userWorkingDays - clock_ins)
+    const effectiveStart = r.nss_start_date && r.nss_start_date > from ? r.nss_start_date : from;
+    const effectiveEnd = r.nss_end_date && r.nss_end_date < to ? r.nss_end_date : to;
+    const userWorkingDays = workingDaysBetween(effectiveStart, effectiveEnd);
+
+    return {
+      user_id: r.user_id,
+      name: r.name,
+      nss_number: r.nss_number,
+      directorate_abbr: r.directorate_abbr,
+      nss_start_date: r.nss_start_date,
+      nss_end_date: r.nss_end_date,
+      current_streak: r.current_streak ?? 0,
+      clock_ins: r.clock_ins ?? 0,
+      late_count: r.late_count ?? 0,
+      absent_days: Math.max(0, userWorkingDays - (r.clock_ins ?? 0)),
+    };
+  });
 
   return success(c, {
     range: { from, to, working_days: workingDays },
@@ -374,6 +407,23 @@ adminNssRoutes.get('/export', async (c) => {
     total_users: rows.length,
     rows,
   });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Manual end-of-service trigger — POST /api/admin/nss/run-eos         */
+/*                                                                      */
+/*  Runs the same routine as the 00:30 UTC cron: auto-deactivates any  */
+/*  NSS user past nss_end_date and dispatches the "ending this week"   */
+/*  Telegram digest to admin subscribers. Used as a smoke-test path    */
+/*  after deploy and as an on-demand admin escape hatch.               */
+/* ------------------------------------------------------------------ */
+
+adminNssRoutes.post('/run-eos', async (c) => {
+  const forbidden = requireRole(c, 'superadmin', 'f_and_a_admin');
+  if (forbidden) return forbidden;
+
+  const result = await runNssEndOfServiceCheck(c.env);
+  return success(c, result);
 });
 
 /* ------------------------------------------------------------------ */
