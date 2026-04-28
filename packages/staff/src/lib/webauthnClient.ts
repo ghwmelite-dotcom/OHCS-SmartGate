@@ -12,7 +12,13 @@ import { getToken } from './tokenStore';
 
 const API_BASE = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ohcsghana-main.workers.dev' : '';
 
-const LAST_STAFF_ID_KEY = 'ohcs.last_staff_id';
+// Legacy key (staff_id only) — read on first run, then mirrored into the new key and cleared.
+const LEGACY_LAST_STAFF_ID_KEY = 'ohcs.last_staff_id';
+// New key persists both the identifier kind and value so NSS users land back on the NSS tab.
+const LAST_IDENTIFIER_KEY = 'ohcs-staff-pwa.last-identifier';
+
+export type IdentifierKind = 'staff_id' | 'nss_number';
+export interface Identifier { kind: IdentifierKind; value: string }
 
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   const token = getToken();
@@ -23,16 +29,69 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
   };
 }
 
+export function rememberIdentifier(identifier: Identifier): void {
+  try {
+    localStorage.setItem(
+      LAST_IDENTIFIER_KEY,
+      JSON.stringify({ kind: identifier.kind, value: identifier.value.toUpperCase() }),
+    );
+    // Once we've migrated forward, drop the legacy key so we don't keep re-mirroring it.
+    localStorage.removeItem(LEGACY_LAST_STAFF_ID_KEY);
+  } catch { /* ignore */ }
+}
+
+export function getLastIdentifier(): Identifier | null {
+  try {
+    const raw = localStorage.getItem(LAST_IDENTIFIER_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { kind?: string; value?: string };
+      if (
+        (parsed.kind === 'staff_id' || parsed.kind === 'nss_number') &&
+        typeof parsed.value === 'string' &&
+        parsed.value.length > 0
+      ) {
+        return { kind: parsed.kind, value: parsed.value };
+      }
+    }
+    // Migration: an older build only stored staff_id as a plain string. Treat it as staff.
+    const legacy = localStorage.getItem(LEGACY_LAST_STAFF_ID_KEY);
+    if (legacy && legacy.length > 0) {
+      const migrated: Identifier = { kind: 'staff_id', value: legacy };
+      try {
+        localStorage.setItem(LAST_IDENTIFIER_KEY, JSON.stringify(migrated));
+        localStorage.removeItem(LEGACY_LAST_STAFF_ID_KEY);
+      } catch { /* ignore */ }
+      return migrated;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearLastIdentifier(): void {
+  try {
+    localStorage.removeItem(LAST_IDENTIFIER_KEY);
+    localStorage.removeItem(LEGACY_LAST_STAFF_ID_KEY);
+  } catch { /* ignore */ }
+}
+
+// --- Back-compat shims (kept narrow). Existing call sites can migrate over time. ---
+
+/** @deprecated Use rememberIdentifier({ kind: 'staff_id', value }) */
 export function rememberStaffId(staffId: string): void {
-  try { localStorage.setItem(LAST_STAFF_ID_KEY, staffId.toUpperCase()); } catch { /* ignore */ }
+  rememberIdentifier({ kind: 'staff_id', value: staffId });
 }
 
+/** @deprecated Use getLastIdentifier() */
 export function getLastStaffId(): string | null {
-  try { return localStorage.getItem(LAST_STAFF_ID_KEY); } catch { return null; }
+  const id = getLastIdentifier();
+  return id?.kind === 'staff_id' ? id.value : null;
 }
 
+/** @deprecated Use clearLastIdentifier() */
 export function clearLastStaffId(): void {
-  try { localStorage.removeItem(LAST_STAFF_ID_KEY); } catch { /* ignore */ }
+  clearLastIdentifier();
 }
 
 export function supportsWebAuthn(): boolean {
@@ -103,13 +162,14 @@ export interface WebAuthnUser {
   session_token?: string;
 }
 
-export async function loginWithBiometric(staffId: string): Promise<WebAuthnUser> {
+export async function loginWithBiometric(identifier: Identifier): Promise<WebAuthnUser> {
   if (!browserSupportsWebAuthn()) throw new Error('Biometrics not supported on this browser');
-  const upper = staffId.toUpperCase();
+  const value = identifier.value.toUpperCase();
+  const idBody = identifier.kind === 'staff_id' ? { staff_id: value } : { nss_number: value };
 
   const optsRes = await fetch(`${API_BASE}/api/auth/webauthn/login/options`, {
     method: 'POST', credentials: 'include', headers: authHeaders(),
-    body: JSON.stringify({ staff_id: upper }),
+    body: JSON.stringify(idBody),
   });
   if (!optsRes.ok) throw new Error(`Could not start sign-in (${optsRes.status})`);
   const { data: options } = await optsRes.json() as { data: PublicKeyCredentialRequestOptionsJSON };
@@ -118,7 +178,7 @@ export async function loginWithBiometric(staffId: string): Promise<WebAuthnUser>
 
   const verifyRes = await fetch(`${API_BASE}/api/auth/webauthn/login/verify`, {
     method: 'POST', credentials: 'include', headers: authHeaders(),
-    body: JSON.stringify({ staff_id: upper, response: assertion, remember: true }),
+    body: JSON.stringify({ ...idBody, response: assertion, remember: true }),
   });
   if (!verifyRes.ok) {
     const body = await verifyRes.json().catch(() => null) as { error?: { message?: string } } | null;

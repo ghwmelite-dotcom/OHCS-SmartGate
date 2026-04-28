@@ -145,9 +145,34 @@ authWebAuthnAuthedRoutes.post('/register/verify', zValidator('json', registerVer
 
 // -------- Authentication (public) --------
 
-const loginOptionsSchema = z.object({
-  staff_id: z.string().min(1).max(20).trim(),
-});
+// Both /login/options and /login/verify accept either staff_id (career staff)
+// or nss_number (NSS personnel) — exactly one. Look-ups are disjoint per identifier
+// type so a malicious caller cannot cross-match identifier kinds.
+const identifierSchema = z
+  .object({
+    staff_id: z.string().min(1).max(20).trim().optional(),
+    nss_number: z.string().min(1).max(32).trim().optional(),
+  })
+  .refine(
+    (v) => (v.staff_id ? 1 : 0) + (v.nss_number ? 1 : 0) === 1,
+    { message: 'Provide exactly one of staff_id or nss_number' },
+  );
+
+const loginOptionsSchema = identifierSchema;
+
+/** Returns the column to look up by ('staff_id' | 'nss_number') and the normalized value. */
+function resolveIdentifier(input: { staff_id?: string; nss_number?: string }): {
+  column: 'staff_id' | 'nss_number';
+  value: string;
+  challengeKey: string;
+} {
+  if (input.staff_id) {
+    const v = input.staff_id.toUpperCase();
+    return { column: 'staff_id', value: v, challengeKey: `webauthn-auth:sid:${v}` };
+  }
+  const v = (input.nss_number ?? '').toUpperCase();
+  return { column: 'nss_number', value: v, challengeKey: `webauthn-auth:nss:${v}` };
+}
 
 authWebAuthnPublicRoutes.post('/login/options', zValidator('json', loginOptionsSchema), async (c) => {
   const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
@@ -160,10 +185,10 @@ authWebAuthnPublicRoutes.post('/login/options', zValidator('json', loginOptionsS
   const rp = resolveRp(c);
   if (!rp) return error(c, 'BAD_ORIGIN', 'Origin not allowed', 400);
 
-  const { staff_id } = c.req.valid('json');
+  const { column, value, challengeKey } = resolveIdentifier(c.req.valid('json'));
   const user = await c.env.DB.prepare(
-    'SELECT id FROM users WHERE staff_id = ? AND is_active = 1'
-  ).bind(staff_id.toUpperCase()).first<{ id: string }>();
+    `SELECT id FROM users WHERE ${column} = ? AND is_active = 1`
+  ).bind(value).first<{ id: string }>();
 
   // Don't leak account existence — always return options. If no user, use empty allowCredentials
   // so the browser still prompts and we fail verify later.
@@ -180,9 +205,9 @@ authWebAuthnPublicRoutes.post('/login/options', zValidator('json', loginOptionsS
     })),
   });
 
-  // Store challenge keyed by staff_id
+  // Store challenge keyed by identifier kind+value so staff and NSS namespaces don't collide.
   await c.env.KV.put(
-    `webauthn-auth:${staff_id.toUpperCase()}`,
+    challengeKey,
     options.challenge,
     { expirationTtl: AUTH_CHALLENGE_TTL },
   );
@@ -190,11 +215,12 @@ authWebAuthnPublicRoutes.post('/login/options', zValidator('json', loginOptionsS
   return success(c, options);
 });
 
-const loginVerifySchema = z.object({
-  staff_id: z.string().min(1).max(20).trim(),
-  response: z.any(),
-  remember: z.boolean().optional(),
-});
+const loginVerifySchema = identifierSchema.and(
+  z.object({
+    response: z.any(),
+    remember: z.boolean().optional(),
+  }),
+);
 
 authWebAuthnPublicRoutes.post('/login/verify', zValidator('json', loginVerifySchema), async (c) => {
   const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
@@ -207,10 +233,11 @@ authWebAuthnPublicRoutes.post('/login/verify', zValidator('json', loginVerifySch
   const rp = resolveRp(c);
   if (!rp) return error(c, 'BAD_ORIGIN', 'Origin not allowed', 400);
 
-  const { staff_id, response, remember } = c.req.valid('json');
-  const upperStaffId = staff_id.toUpperCase();
+  const body = c.req.valid('json');
+  const { response, remember } = body;
+  const { column, value, challengeKey } = resolveIdentifier(body);
 
-  const expectedChallenge = await c.env.KV.get(`webauthn-auth:${upperStaffId}`);
+  const expectedChallenge = await c.env.KV.get(challengeKey);
   if (!expectedChallenge) return error(c, 'CHALLENGE_EXPIRED', 'Challenge expired — try again', 400);
 
   const assertion = response as AuthenticationResponseJSON;
@@ -220,8 +247,8 @@ authWebAuthnPublicRoutes.post('/login/verify', zValidator('json', loginVerifySch
     `SELECT c.id, c.user_id, c.public_key, c.counter, c.transports
      FROM webauthn_credentials c
      JOIN users u ON c.user_id = u.id
-     WHERE c.id = ? AND u.staff_id = ? AND u.is_active = 1`
-  ).bind(credentialId, upperStaffId).first<StoredCredential>();
+     WHERE c.id = ? AND u.${column} = ? AND u.is_active = 1`
+  ).bind(credentialId, value).first<StoredCredential>();
 
   if (!cred) return error(c, 'NOT_FOUND', 'Credential not recognized', 404);
 
@@ -253,7 +280,7 @@ authWebAuthnPublicRoutes.post('/login/verify', zValidator('json', loginVerifySch
     `UPDATE webauthn_credentials SET counter = ?, last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`
   ).bind(verification.authenticationInfo.newCounter, cred.id).run();
 
-  await c.env.KV.delete(`webauthn-auth:${upperStaffId}`);
+  await c.env.KV.delete(challengeKey);
 
   // Load user for session payload
   const user = await c.env.DB.prepare(

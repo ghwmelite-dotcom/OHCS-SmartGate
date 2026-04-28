@@ -84,17 +84,31 @@ authRoutes.post('/verify', zValidator('json', verifySchema), async (c) => {
   });
 });
 
-// PIN-based login
-const pinLoginSchema = z.object({
-  staff_id: z.string().min(1).max(20).trim(),
-  pin: z.string().length(4).regex(/^\d{4}$/, 'PIN must be 4 digits'),
-  remember: z.boolean().optional(),
-});
+// PIN-based login — accepts either staff_id (career staff) or nss_number (NSS personnel),
+// exactly one. PIN is 4–6 digits to accommodate the temporary 6-digit PIN F&A hands NSS staff.
+const pinLoginSchema = z
+  .object({
+    staff_id: z.string().min(1).max(20).trim().optional(),
+    nss_number: z.string().min(1).max(32).trim().optional(),
+    pin: z.string().regex(/^\d{4,6}$/, 'PIN must be 4–6 digits'),
+    remember: z.boolean().optional(),
+  })
+  .refine(
+    (v) => (v.staff_id ? 1 : 0) + (v.nss_number ? 1 : 0) === 1,
+    { message: 'Provide exactly one of staff_id or nss_number' },
+  );
 
 authRoutes.post('/pin-login', zValidator('json', pinLoginSchema), async (c) => {
-  const { staff_id, pin, remember } = c.req.valid('json');
+  const { staff_id, nss_number, pin, remember } = c.req.valid('json');
   const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
-  const rlId = await rateLimit(c.env, `pin:${staff_id.toUpperCase()}`, 10, 300);
+
+  // Normalize the supplied identifier and choose the lookup column. Disjoint queries —
+  // never OR them so a malicious caller can't cross identifier types.
+  const isStaff = !!staff_id;
+  const rawId = (staff_id ?? nss_number ?? '').toUpperCase();
+  const lookupColumn = isStaff ? 'staff_id' : 'nss_number';
+
+  const rlId = await rateLimit(c.env, `pin:${rawId}`, 10, 300);
   const rlIp = await rateLimit(c.env, `pin-ip:${ip}`, 30, 300);
   if (!rlId.allowed || !rlIp.allowed) {
     c.header('Retry-After', String(Math.max(rlId.retryAfter, rlIp.retryAfter)));
@@ -102,14 +116,14 @@ authRoutes.post('/pin-login', zValidator('json', pinLoginSchema), async (c) => {
   }
 
   const user = await c.env.DB.prepare(
-    'SELECT id, name, email, role, pin_hash, is_active, pin_acknowledged FROM users WHERE staff_id = ?'
-  ).bind(staff_id.toUpperCase()).first<{
+    `SELECT id, name, email, role, pin_hash, is_active, pin_acknowledged FROM users WHERE ${lookupColumn} = ?`
+  ).bind(rawId).first<{
     id: string; name: string; email: string; role: string;
     pin_hash: string | null; is_active: number; pin_acknowledged: number;
   }>();
 
   if (!user || !user.is_active) {
-    return error(c, 'INVALID_CREDENTIALS', 'Invalid staff ID or PIN', 401);
+    return error(c, 'INVALID_CREDENTIALS', 'Invalid credentials', 401);
   }
 
   if (!user.pin_hash) {
@@ -118,7 +132,7 @@ authRoutes.post('/pin-login', zValidator('json', pinLoginSchema), async (c) => {
 
   const valid = await verifyPin(pin, user.pin_hash);
   if (!valid) {
-    return error(c, 'INVALID_CREDENTIALS', 'Invalid staff ID or PIN', 401);
+    return error(c, 'INVALID_CREDENTIALS', 'Invalid credentials', 401);
   }
 
   const { sessionId, ttl } = await createSession(user.id, user.email, user.role, user.name, c.env, remember);

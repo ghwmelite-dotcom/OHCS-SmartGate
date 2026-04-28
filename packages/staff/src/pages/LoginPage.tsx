@@ -1,11 +1,54 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth';
-import { KeyRound, Fingerprint } from 'lucide-react';
-import { getLastStaffId, supportsPlatformAuthenticator } from '@/lib/webauthnClient';
+import { KeyRound, Fingerprint, Briefcase, GraduationCap } from 'lucide-react';
+import {
+  getLastIdentifier,
+  supportsPlatformAuthenticator,
+  type IdentifierKind,
+} from '@/lib/webauthnClient';
+
+const TAB_STORAGE_KEY = 'ohcs-staff-pwa.login-tab';
+
+type Tab = 'staff' | 'nss';
+
+const TAB_KIND: Record<Tab, IdentifierKind> = {
+  staff: 'staff_id',
+  nss: 'nss_number',
+};
+
+const TAB_COPY: Record<Tab, { label: string; placeholder: string; helper: string }> = {
+  staff: {
+    label: 'Staff ID',
+    placeholder: 'e.g. 1334685',
+    helper: 'Issued by HR',
+  },
+  nss: {
+    label: 'NSS Number',
+    placeholder: 'e.g. NSSGUE8364724',
+    helper: 'From your NSS posting letter',
+  },
+};
+
+function readInitialTab(): Tab {
+  // The remembered identifier kind beats the explicit tab choice — a returning NSS user
+  // should land on NSS even if they once tapped Staff. If neither exists, fall back to staff.
+  try {
+    const id = getLastIdentifier();
+    if (id?.kind === 'nss_number') return 'nss';
+    if (id?.kind === 'staff_id') return 'staff';
+    const stored = localStorage.getItem(TAB_STORAGE_KEY);
+    if (stored === 'staff' || stored === 'nss') return stored;
+  } catch { /* ignore */ }
+  return 'staff';
+}
 
 export function LoginPage() {
-  const [staffId, setStaffId] = useState(() => getLastStaffId() ?? '');
+  const last = useMemo(() => getLastIdentifier(), []);
+  const [tab, setTab] = useState<Tab>(() => readInitialTab());
+  // Two independent inputs so swapping tabs doesn't lose what the user typed in the other.
+  const [staffValue, setStaffValue] = useState(() => (last?.kind === 'staff_id' ? last.value : ''));
+  const [nssValue, setNssValue] = useState(() => (last?.kind === 'nss_number' ? last.value : ''));
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -22,12 +65,26 @@ export function LoginPage() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch { /* ignore */ }
+  }, [tab]);
+
+  const copy = TAB_COPY[tab];
+  const value = tab === 'staff' ? staffValue : nssValue;
+  const setValue = tab === 'staff' ? setStaffValue : setNssValue;
+  const trimmed = value.trim();
+  const showNssWelcome = tab === 'nss' && !last;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (!trimmed) {
+      setError(`Enter your ${copy.label} first`);
+      return;
+    }
     setIsLoading(true);
     try {
-      await loginWithPin(staffId, pin);
+      await loginWithPin({ kind: TAB_KIND[tab], value: trimmed }, pin);
       navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid credentials');
@@ -37,14 +94,14 @@ export function LoginPage() {
   }
 
   async function handleBiometric() {
-    if (!staffId.trim()) {
-      setError('Enter your Staff ID first');
+    if (!trimmed) {
+      setError(`Enter your ${copy.label} first`);
       return;
     }
     setError('');
     setBioLoading(true);
     try {
-      await loginWithWebAuthn(staffId.trim());
+      await loginWithWebAuthn({ kind: TAB_KIND[tab], value: trimmed });
       navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Biometric sign-in failed');
@@ -72,28 +129,94 @@ export function LoginPage() {
         </div>
 
         <div className="bg-white/[0.08] backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-          <div className="flex items-center gap-2 mb-5">
+          <div className="flex items-center gap-2 mb-4">
             <KeyRound className="h-4 w-4 text-[#D4A017]" />
             <span className="text-[14px] font-semibold text-white">Sign In</span>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Tab pill — single component with sliding gold underline */}
+          <div
+            role="tablist"
+            aria-label="Choose account type"
+            className="relative grid grid-cols-2 mb-5 rounded-xl bg-white/5 border border-white/10 p-1"
+          >
+            {/* Sliding indicator */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-lg bg-white/[0.07] ring-1 ring-[#D4A017]/30 transition-transform duration-[250ms] ease-out motion-reduce:transition-none"
+              style={{ transform: tab === 'staff' ? 'translateX(0%)' : 'translateX(100%)' }}
+            />
+            {/* Gold underline bar */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -bottom-px left-1 h-[2px] w-[calc(50%-4px)] rounded-full bg-[#D4A017] transition-transform duration-[250ms] ease-out motion-reduce:transition-none"
+              style={{ transform: tab === 'staff' ? 'translateX(0%)' : 'translateX(100%)' }}
+            />
+            {(['staff', 'nss'] as const).map((t) => {
+              const isActive = tab === t;
+              const Icon = t === 'staff' ? Briefcase : GraduationCap;
+              const labelText = t === 'staff' ? 'Staff' : 'NSS';
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls="login-form"
+                  onClick={() => { setTab(t); setError(''); }}
+                  className={`relative z-[1] h-11 inline-flex items-center justify-center gap-2 rounded-lg text-[13px] font-semibold tracking-wide transition-colors ${
+                    isActive ? 'text-white' : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" aria-hidden />
+                  {labelText}
+                </button>
+              );
+            })}
+          </div>
+
+          <form id="login-form" onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wide mb-1.5">Staff ID</label>
-              <input type="text" required value={staffId} onChange={e => setStaffId(e.target.value.toUpperCase())}
-                placeholder="1334685" autoFocus={!staffId}
-                className="w-full h-12 px-4 rounded-xl bg-white/10 border border-white/10 text-white text-[15px] font-medium tracking-wider placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-[#D4A017]/30 focus:border-[#D4A017]/40 transition-all" />
+              <label htmlFor="login-identifier" className="block text-[11px] font-semibold text-white/50 uppercase tracking-wide mb-1.5">
+                {copy.label}
+              </label>
+              <input
+                id="login-identifier"
+                type="text"
+                required
+                value={value}
+                onChange={(e) => setValue(e.target.value.toUpperCase())}
+                placeholder={copy.placeholder}
+                autoFocus={!trimmed}
+                autoComplete="username"
+                inputMode={tab === 'staff' ? 'numeric' : 'text'}
+                className="w-full h-12 px-4 rounded-xl bg-white/10 border border-white/10 text-white text-[15px] font-medium tracking-wider placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-[#D4A017]/30 focus:border-[#D4A017]/40 transition-all"
+              />
+              <p className="mt-1.5 text-[11px] text-white/40">{copy.helper}</p>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wide mb-1.5">PIN</label>
-              <input type="password" required maxLength={4} value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-                placeholder="****" inputMode="numeric"
-                className="w-full h-14 px-4 rounded-xl bg-white/10 border border-white/10 text-white text-center text-2xl font-bold tracking-[0.5em] font-mono placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-[#D4A017]/30 focus:border-[#D4A017]/40 transition-all" />
+              <label htmlFor="login-pin" className="block text-[11px] font-semibold text-white/50 uppercase tracking-wide mb-1.5">PIN</label>
+              <input
+                id="login-pin"
+                type="password"
+                required
+                maxLength={6}
+                minLength={4}
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                placeholder="••••"
+                inputMode="numeric"
+                autoComplete="current-password"
+                className="w-full h-14 px-4 rounded-xl bg-white/10 border border-white/10 text-white text-center text-2xl font-bold tracking-[0.5em] font-mono placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-[#D4A017]/30 focus:border-[#D4A017]/40 transition-all"
+              />
             </div>
-            {error && <p className="text-red-400 text-[13px] font-medium">{error}</p>}
-            <button type="submit" disabled={isLoading || bioLoading || pin.length !== 4}
-              className="w-full h-12 bg-[#D4A017] text-[#071A0F] rounded-xl font-bold text-[15px] hover:brightness-110 disabled:opacity-50 shadow-lg shadow-[#D4A017]/20 active:scale-[0.98] transition-all">
-              {isLoading ? 'Signing in...' : 'Sign In'}
+            {error && <p className="text-red-400 text-[13px] font-medium" role="alert">{error}</p>}
+            <button
+              type="submit"
+              disabled={isLoading || bioLoading || pin.length < 4 || !trimmed}
+              className="w-full h-12 bg-[#D4A017] text-[#071A0F] rounded-xl font-bold text-[15px] hover:brightness-110 disabled:opacity-50 shadow-lg shadow-[#D4A017]/20 active:scale-[0.98] transition-all"
+            >
+              {isLoading ? 'Signing in…' : 'Sign In'}
             </button>
 
             {bioAvailable && (
@@ -106,7 +229,7 @@ export function LoginPage() {
                 <button
                   type="button"
                   onClick={handleBiometric}
-                  disabled={isLoading || bioLoading || !staffId.trim()}
+                  disabled={isLoading || bioLoading || !trimmed}
                   className="w-full h-12 rounded-xl bg-white/10 border border-[#D4A017]/30 text-white text-[14px] font-semibold hover:bg-white/15 hover:border-[#D4A017]/50 disabled:opacity-40 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
                   <Fingerprint className="h-5 w-5 text-[#D4A017]" />
@@ -114,6 +237,12 @@ export function LoginPage() {
                 </button>
                 <p className="text-[11px] text-white/40 text-center">Enroll from the Settings menu after signing in</p>
               </>
+            )}
+
+            {showNssWelcome && (
+              <p className="text-[11px] text-white/50 text-center pt-1 leading-relaxed">
+                Use the 6-digit PIN F&amp;A gave you. You can switch to a 4-digit PIN after sign-in.
+              </p>
             )}
           </form>
         </div>
