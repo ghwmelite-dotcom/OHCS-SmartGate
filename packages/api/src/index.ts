@@ -36,6 +36,10 @@ const app = new Hono<{ Bindings: Env; Variables: { session: import('./types').Se
 const PROD_ORIGINS = new Set([
   'https://staff-attendance.pages.dev',
   'https://ohcs-smartgate.pages.dev',
+  'https://smartgate.ohcsghana.org',
+  'https://www.smartgate.ohcsghana.org',
+  'https://staff-attendance.ohcsghana.org',
+  'https://www.staff-attendance.ohcsghana.org',
 ]);
 
 const DEV_ORIGINS = new Set([

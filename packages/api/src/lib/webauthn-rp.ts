@@ -4,6 +4,10 @@ import type { Env } from '../types';
 const PROD_RP_ORIGINS = new Set([
   'https://staff-attendance.pages.dev',
   'https://ohcs-smartgate.pages.dev',
+  'https://smartgate.ohcsghana.org',
+  'https://www.smartgate.ohcsghana.org',
+  'https://staff-attendance.ohcsghana.org',
+  'https://www.staff-attendance.ohcsghana.org',
 ]);
 
 const DEV_RP_ORIGINS = new Set([
@@ -36,11 +40,15 @@ export function resolveRp(c: MinContext): RpConfig | null {
     const url = new URL(origin);
     // The RP name is what shows in the OS/browser passkey prompt — match the
     // brand of the app the user is actually authenticating against.
-    const rpName = url.hostname === 'ohcs-smartgate.pages.dev'
-      ? 'OHCS VMS'
-      : url.hostname === 'staff-attendance.pages.dev'
-        ? 'OHCS Staff Attendance'
-        : 'OHCS SmartGate';
+    const isVms =
+      url.hostname === 'ohcs-smartgate.pages.dev' ||
+      url.hostname === 'smartgate.ohcsghana.org' ||
+      url.hostname === 'www.smartgate.ohcsghana.org';
+    const isStaff =
+      url.hostname === 'staff-attendance.pages.dev' ||
+      url.hostname === 'staff-attendance.ohcsghana.org' ||
+      url.hostname === 'www.staff-attendance.ohcsghana.org';
+    const rpName = isVms ? 'OHCS VMS' : isStaff ? 'OHCS Staff Attendance' : 'OHCS SmartGate';
     return {
       rpID: url.hostname,
       rpName,
