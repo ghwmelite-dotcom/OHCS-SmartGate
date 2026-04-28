@@ -1,6 +1,6 @@
 # OHCS SmartGate & Staff Attendance System
 
-_A secure, offline-capable platform for the Office of the Head of Civil Service, Ghana — combining visitor management with GPS-verified staff attendance._
+_A secure, offline-capable platform for the Office of the Head of the Civil Service, Ghana — combining visitor management with GPS-verified staff attendance._
 
 [![Deploy to Cloudflare](https://github.com/ghwmelite-dotcom/OHCS-SmartGate-Staff-Attendance-System/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/ghwmelite-dotcom/OHCS-SmartGate-Staff-Attendance-System/actions/workflows/deploy.yml)
 [![Tech — Cloudflare Workers](https://img.shields.io/badge/api-Cloudflare%20Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
@@ -13,7 +13,7 @@ _A secure, offline-capable platform for the Office of the Head of Civil Service,
 
 ## Overview
 
-OHCS SmartGate is a two-app system serving the Office of the Head of Civil Service in Accra:
+OHCS SmartGate is a two-app system serving the Office of the Head of the Civil Service in Accra:
 
 - **Staff Attendance** — officers clock in/out from an installable mobile PWA with GPS geofencing (75 m around OHCS HQ), camera verification, streak tracking, and an offline queue that sync-replays missed clock-ins when connectivity returns.
 - **Visitor Management System (SmartGate)** — reception and directorate admins register visitors, issue digital badges, and route arrival notifications (Telegram + web push + in-app) to the host officer and directorate leadership in near-real-time.
@@ -284,7 +284,7 @@ Known deferred work, each to be tackled as its own project:
 
 ## License
 
-© 2026 Office of the Head of Civil Service, Ghana. All rights reserved.
+© 2026 Office of the Head of the Civil Service, Ghana. All rights reserved.
 
 This is a bespoke system built for a specific public-sector agency. The source is published for transparency and reference; it is not released under an open-source license. Re-use of the code, assets, or designs requires written permission from OHCS IT.
 

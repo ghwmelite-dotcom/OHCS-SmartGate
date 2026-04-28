@@ -154,7 +154,7 @@ export async function serveBadgePage(c: Context<{ Bindings: Env }>) {
   <div class="badge">
     <div class="header">
       <h1>OHCS VMS</h1>
-      <div class="subtitle">Office of the Head of Civil Service, Ghana</div>
+      <div class="subtitle">Office of the Head of the Civil Service, Ghana</div>
     </div>
     <div class="gold-accent"></div>
     <div class="status ${isActive ? 'active' : 'expired'}">

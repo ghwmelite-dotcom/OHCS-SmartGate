@@ -90,7 +90,7 @@ export function App() {
           </div>
 
           {/* Subtitle */}
-          <p className="text-white/30 text-[15px] mt-3">Office of the Head of Civil Service, Ghana</p>
+          <p className="text-white/30 text-[15px] mt-3">Office of the Head of the Civil Service, Ghana</p>
         </div>
 
         {/* Loading bar */}

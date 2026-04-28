@@ -6,7 +6,7 @@ const CATEGORY_SLUGS = [
   'inspection', 'training', 'interview', 'other',
 ] as const;
 
-const SYSTEM_PROMPT = `You are a visit classifier for OHCS (Office of the Head of Civil Service, Ghana).
+const SYSTEM_PROMPT = `You are a visit classifier for OHCS (Office of the Head of the Civil Service, Ghana).
 Classify the visitor's stated purpose into exactly one category.
 Return ONLY the slug, nothing else.
 

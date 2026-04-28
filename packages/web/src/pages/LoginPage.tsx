@@ -101,7 +101,7 @@ export function LoginPage() {
           </div>
 
           <p className="text-white/40 text-sm text-center mt-6 max-w-[280px] leading-relaxed">
-            Secure digital visitor management for the Office of the Head of Civil Service
+            Secure digital visitor management for the Office of the Head of the Civil Service
           </p>
 
           {/* Motto */}
@@ -316,7 +316,7 @@ export function LoginPage() {
           </div>
 
           <p className="text-center text-[10px] text-muted-foreground mt-6 tracking-wide">
-            Office of the Head of Civil Service, Ghana
+            Office of the Head of the Civil Service, Ghana
           </p>
         </div>
       </div>

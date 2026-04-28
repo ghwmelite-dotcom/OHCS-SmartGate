@@ -9,7 +9,7 @@ import { devLog } from '../lib/log';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
-// OHCS building footprints (Office of The Head of Civil Service, Accra).
+// OHCS building footprints (Office of The Head of the Civil Service, Accra).
 // Corners traced from Google Maps satellite view. Each polygon is one
 // building; a clock-in is allowed if the user is inside ANY of them. Order
 // within a polygon is the perimeter walk; winding direction is irrelevant

@@ -48,7 +48,7 @@ export function Header() {
           </div>
           <div>
             <p className="text-[13px] font-medium text-foreground/80 tracking-wide">
-              Office of the Head of Civil Service
+              Office of the Head of the Civil Service
             </p>
             <p className="text-[11px] text-muted-foreground">
               Accra, Ghana &middot; {formatDate(new Date().toISOString())}
