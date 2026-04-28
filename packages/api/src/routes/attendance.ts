@@ -13,36 +13,72 @@ function requireAdmin(c: { get: (key: 'session') => SessionData }) {
   return role === 'superadmin' || role === 'admin';
 }
 
+type UserTypeSegment = 'staff' | 'nss' | 'all';
+
+/**
+ * Parse the optional ?user_type query into a normalised segment.
+ * Default 'staff' preserves the historical behaviour for callers that
+ * don't pass the param.
+ */
+function parseUserTypeSegment(raw: string | undefined): UserTypeSegment {
+  if (raw === 'nss' || raw === 'all') return raw;
+  return 'staff';
+}
+
+/**
+ * Append a user_type filter clause to existing SQL conditions.
+ * Returns the SQL fragment (already prefixed with AND when needed) and the bind value (if any).
+ */
+function userTypeWhereClause(segment: UserTypeSegment): { clause: string; param?: string } {
+  if (segment === 'all') return { clause: '' };
+  return { clause: 'AND u.user_type = ?', param: segment };
+}
+
 // Today's attendance overview
 attendanceRoutes.get('/today', async (c) => {
   if (!requireAdmin(c)) return error(c, 'FORBIDDEN', 'Admin access required', 403);
   const today = new Date().toISOString().slice(0, 10);
+  const segment = parseUserTypeSegment(c.req.query('user_type'));
   const settings = await getAppSettings(c.env);
   const lateAfter = toSqlTime(settings.late_threshold_time);
   const endAt = toSqlTime(settings.work_end_time);
 
+  // user_type filter on the population (total_staff) and on the joined users for clock counts.
+  const userTypeUserSql = segment === 'all' ? '' : 'AND user_type = ?';
+  const totalStaffParams = segment === 'all' ? [] : [segment];
+
+  // For clock counts we must join clock_records to users to filter by user_type.
+  const userTypeJoinSql = segment === 'all'
+    ? ''
+    : `AND EXISTS (SELECT 1 FROM users u WHERE u.id = cr.user_id AND u.user_type = ?)`;
+  const userTypeJoinParams = segment === 'all' ? [] : [segment];
+
   const [totalStaff, clockedIn, clockedOut, lateArrivals, earlyDepartures] = await Promise.all([
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE is_active = 1').first<{ count: number }>(),
+    c.env.DB.prepare(`SELECT COUNT(*) as count FROM users WHERE is_active = 1 ${userTypeUserSql}`)
+      .bind(...totalStaffParams)
+      .first<{ count: number }>(),
 
     c.env.DB.prepare(
-      `SELECT COUNT(DISTINCT user_id) as count FROM clock_records WHERE type = 'clock_in' AND DATE(timestamp) = ?`
-    ).bind(today).first<{ count: number }>(),
+      `SELECT COUNT(DISTINCT cr.user_id) as count FROM clock_records cr
+       WHERE cr.type = 'clock_in' AND DATE(cr.timestamp) = ? ${userTypeJoinSql}`
+    ).bind(today, ...userTypeJoinParams).first<{ count: number }>(),
 
     c.env.DB.prepare(
-      `SELECT COUNT(DISTINCT user_id) as count FROM clock_records WHERE type = 'clock_out' AND DATE(timestamp) = ?`
-    ).bind(today).first<{ count: number }>(),
+      `SELECT COUNT(DISTINCT cr.user_id) as count FROM clock_records cr
+       WHERE cr.type = 'clock_out' AND DATE(cr.timestamp) = ? ${userTypeJoinSql}`
+    ).bind(today, ...userTypeJoinParams).first<{ count: number }>(),
 
     // Late = clocked in after configured late threshold
     c.env.DB.prepare(
-      `SELECT COUNT(DISTINCT user_id) as count FROM clock_records
-       WHERE type = 'clock_in' AND DATE(timestamp) = ? AND TIME(timestamp) > ?`
-    ).bind(today, lateAfter).first<{ count: number }>(),
+      `SELECT COUNT(DISTINCT cr.user_id) as count FROM clock_records cr
+       WHERE cr.type = 'clock_in' AND DATE(cr.timestamp) = ? AND TIME(cr.timestamp) > ? ${userTypeJoinSql}`
+    ).bind(today, lateAfter, ...userTypeJoinParams).first<{ count: number }>(),
 
     // Early departure = clocked out before work_end_time
     c.env.DB.prepare(
-      `SELECT COUNT(DISTINCT user_id) as count FROM clock_records
-       WHERE type = 'clock_out' AND DATE(timestamp) = ? AND TIME(timestamp) < ?`
-    ).bind(today, endAt).first<{ count: number }>(),
+      `SELECT COUNT(DISTINCT cr.user_id) as count FROM clock_records cr
+       WHERE cr.type = 'clock_out' AND DATE(cr.timestamp) = ? AND TIME(cr.timestamp) < ? ${userTypeJoinSql}`
+    ).bind(today, endAt, ...userTypeJoinParams).first<{ count: number }>(),
   ]);
 
   const total = totalStaff?.count ?? 0;
@@ -65,11 +101,12 @@ attendanceRoutes.get('/records', async (c) => {
 
   const date = c.req.query('date') ?? new Date().toISOString().slice(0, 10);
   const directorateId = c.req.query('directorate_id');
+  const segment = parseUserTypeSegment(c.req.query('user_type'));
   const settings = await getAppSettings(c.env);
   const lateAfter = toSqlTime(settings.late_threshold_time);
   const endAt = toSqlTime(settings.work_end_time);
 
-  let sql = `SELECT u.id as user_id, u.name, u.staff_id, u.role,
+  let sql = `SELECT u.id as user_id, u.name, u.staff_id, u.role, u.user_type,
                     d.abbreviation as directorate_abbr,
                     ci.timestamp as clock_in_time, co.timestamp as clock_out_time,
                     ci.photo_url as clock_in_photo,
@@ -82,6 +119,12 @@ attendanceRoutes.get('/records', async (c) => {
              LEFT JOIN clock_records co ON co.user_id = u.id AND co.type = 'clock_out' AND DATE(co.timestamp) = ?
              WHERE u.is_active = 1`;
   const params: unknown[] = [lateAfter, endAt, date, date];
+
+  const userTypeWhere = userTypeWhereClause(segment);
+  if (userTypeWhere.clause) {
+    sql += ` ${userTypeWhere.clause}`;
+    params.push(userTypeWhere.param!);
+  }
 
   if (directorateId) {
     sql += ' AND u.directorate_id = ?';
@@ -99,8 +142,15 @@ attendanceRoutes.get('/by-directorate', async (c) => {
   if (!requireAdmin(c)) return error(c, 'FORBIDDEN', 'Admin access required', 403);
 
   const date = c.req.query('date') ?? new Date().toISOString().slice(0, 10);
+  const segment = parseUserTypeSegment(c.req.query('user_type'));
   const settings = await getAppSettings(c.env);
   const lateAfter = toSqlTime(settings.late_threshold_time);
+
+  // Filter the user join itself by user_type so directorate counts match the segment.
+  const userTypeJoin = segment === 'all' ? '' : 'AND u.user_type = ?';
+  const params: unknown[] = [lateAfter];
+  if (segment !== 'all') params.push(segment);
+  params.push(date);
 
   const results = await c.env.DB.prepare(
     `SELECT d.abbreviation, d.name,
@@ -108,12 +158,12 @@ attendanceRoutes.get('/by-directorate', async (c) => {
             COUNT(DISTINCT ci.user_id) as present,
             COUNT(DISTINCT CASE WHEN TIME(ci.timestamp) > ? THEN ci.user_id END) as late
      FROM directorates d
-     LEFT JOIN users u ON u.directorate_id = d.id AND u.is_active = 1
+     LEFT JOIN users u ON u.directorate_id = d.id AND u.is_active = 1 ${userTypeJoin}
      LEFT JOIN clock_records ci ON ci.user_id = u.id AND ci.type = 'clock_in' AND DATE(ci.timestamp) = ?
      WHERE d.is_active = 1
      GROUP BY d.id
      ORDER BY d.abbreviation`
-  ).bind(lateAfter, date).all();
+  ).bind(...params).all();
 
   return success(c, results.results ?? []);
 });

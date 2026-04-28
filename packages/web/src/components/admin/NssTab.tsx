@@ -3,11 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Directorate } from '@/lib/api';
 import { cn, formatTime } from '@/lib/utils';
 import { toast } from '@/stores/toast';
+import { downloadCSV } from '@/lib/csv';
+import { generateNssReportPdf, type NssReportRow, type NssReportSummary } from '@/lib/pdf';
 import { NssRegistrationModal } from './NssRegistrationModal';
 import { NssDetailModal } from './NssDetailModal';
 import {
   GraduationCap, Users, CheckCircle2, AlertTriangle, CalendarClock,
   Search, X, MoreVertical, Eye, Pencil, KeyRound, Power, AlertCircle, Loader2,
+  FileDown, FileText, FileSpreadsheet,
 } from 'lucide-react';
 
 /* ---- Types ---- */
@@ -61,6 +64,7 @@ export function NssTab() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [resetPinUser, setResetPinUser] = useState<NssListRow | null>(null);
@@ -191,16 +195,31 @@ export function NssTab() {
             Monitored centrally by F&amp;A Directorate
           </p>
         </div>
-        <button
-          onClick={() => setShowRegistration(true)}
-          className="inline-flex items-center gap-2 h-11 px-5 bg-primary text-white text-[14px] font-semibold rounded-xl hover:bg-primary-light transition-all shadow-lg shadow-primary/15 active:scale-[0.98]"
-        >
-          <GraduationCap className="h-4.5 w-4.5" />
-          Register NSS
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowExport(true)}
+            className="inline-flex items-center gap-2 h-11 px-4 bg-surface text-foreground text-[13px] font-semibold rounded-xl border border-border hover:border-accent/40 transition-all"
+          >
+            <FileDown className="h-4 w-4 text-accent-warm" />
+            Export Report
+          </button>
+          <button
+            onClick={() => setShowRegistration(true)}
+            className="inline-flex items-center gap-2 h-11 px-5 bg-primary text-white text-[14px] font-semibold rounded-xl hover:bg-primary-light transition-all shadow-lg shadow-primary/15 active:scale-[0.98]"
+          >
+            <GraduationCap className="h-4.5 w-4.5" />
+            Register NSS
+          </button>
+        </div>
       </div>
 
       {showRegistration && <NssRegistrationModal onClose={() => setShowRegistration(false)} />}
+      {showExport && (
+        <NssExportModal
+          directorates={directorates}
+          onClose={() => setShowExport(false)}
+        />
+      )}
 
       {/* Ending-soon banner */}
       {endingIn14.length > 0 && (
@@ -729,6 +748,235 @@ function PinResultModal({ name, nssNumber, pin, onClose }: {
               className="h-10 px-5 text-[13px] font-semibold bg-primary text-white rounded-xl hover:bg-primary-light transition-all shadow-sm"
             >
               I&apos;ve recorded this
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---- NSS Export modal ---- */
+
+interface NssExportResponse {
+  range: { from: string; to: string; working_days: number };
+  directorate_id: string | null;
+  total_users: number;
+  rows: NssReportRow[];
+}
+
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
+}
+
+function formatDateGB(iso: string): string {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+}
+
+function NssExportModal({
+  directorates,
+  onClose,
+}: {
+  directorates: Directorate[];
+  onClose: () => void;
+}) {
+  const [from, setFrom] = useState(isoDaysAgo(30));
+  const [to, setTo] = useState(todayIso());
+  const [directorateId, setDirectorateId] = useState('');
+  const [busy, setBusy] = useState<null | 'pdf' | 'csv'>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const validRange = from && to && from <= to;
+
+  async function fetchExport(): Promise<NssExportResponse | null> {
+    setErr(null);
+    if (!validRange) {
+      setErr('Select a valid date range — "from" must be on or before "to"');
+      return null;
+    }
+    const params = new URLSearchParams({ from, to });
+    if (directorateId) params.set('directorate_id', directorateId);
+    try {
+      const res = await api.get<NssExportResponse>(`/admin/nss/export?${params.toString()}`);
+      if (!res.data) {
+        setErr(res.error?.message ?? 'Empty response');
+        return null;
+      }
+      return res.data;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to load report';
+      setErr(msg);
+      return null;
+    }
+  }
+
+  function directorateLabel(): string | undefined {
+    if (!directorateId) return undefined;
+    const d = directorates.find(x => x.id === directorateId);
+    return d ? `${d.abbreviation} — ${d.name}` : undefined;
+  }
+
+  async function downloadPdf() {
+    if (busy) return;
+    setBusy('pdf');
+    try {
+      const data = await fetchExport();
+      if (!data) return;
+      const summary: NssReportSummary = {
+        range: data.range,
+        total_users: data.total_users,
+        rows: data.rows,
+        directorate_label: directorateLabel(),
+      };
+      const doc = generateNssReportPdf(summary);
+      doc.save(`OHCS-NSS-Report-${data.range.from}-to-${data.range.to}.pdf`);
+      toast.success('NSS report PDF downloaded');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function downloadCsv() {
+    if (busy) return;
+    setBusy('csv');
+    try {
+      const data = await fetchExport();
+      if (!data) return;
+      const headers = [
+        'Name', 'NSS Number', 'Directorate', 'Posting Start',
+        'Posting End', 'Clock-Ins', 'Late Count', 'Streak', 'Absent Days',
+      ];
+      const rows = data.rows.map(r => [
+        r.name,
+        r.nss_number ?? '',
+        r.directorate_abbr ?? '',
+        r.nss_start_date ?? '',
+        r.nss_end_date ?? '',
+        String(r.clock_ins),
+        String(r.late_count),
+        String(r.current_streak),
+        String(r.absent_days),
+      ]);
+      const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
+      const csv = [headers, ...rows].map(row => row.map(escape).join(',')).join('\n');
+      downloadCSV(csv, `OHCS-NSS-Report-${data.range.from}-to-${data.range.to}.csv`);
+      toast.success('NSS report CSV downloaded');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="nss-export-title"
+    >
+      <div
+        className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-md overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, #D4A017, #F5D76E, #D4A017)' }} />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+              <FileDown className="h-4.5 w-4.5 text-primary" />
+            </div>
+            <div>
+              <h3 id="nss-export-title" className="text-[17px] font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                Export NSS Report
+              </h3>
+              <p className="text-[12px] text-muted">Roll-up across the selected window</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {/* Date range */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[13px] font-semibold text-foreground mb-1">From</label>
+              <input
+                type="date"
+                value={from}
+                onChange={e => setFrom(e.target.value)}
+                max={to}
+                className="w-full h-10 px-3 rounded-xl border border-border bg-background text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-[13px] font-semibold text-foreground mb-1">To</label>
+              <input
+                type="date"
+                value={to}
+                onChange={e => setTo(e.target.value)}
+                min={from}
+                max={todayIso()}
+                className="w-full h-10 px-3 rounded-xl border border-border bg-background text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {/* Directorate */}
+          <div>
+            <label className="block text-[13px] font-semibold text-foreground mb-1">Directorate</label>
+            <select
+              value={directorateId}
+              onChange={e => setDirectorateId(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl border border-border bg-background text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            >
+              <option value="">All directorates</option>
+              {directorates.map(d => (
+                <option key={d.id} value={d.id}>{d.abbreviation} — {d.name}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted mt-1">
+              {validRange ? (
+                <>Range: {formatDateGB(from)} — {formatDateGB(to)}</>
+              ) : (
+                <span className="text-danger">Select a valid date range</span>
+              )}
+            </p>
+          </div>
+
+          {err && (
+            <div className="flex items-start gap-2 p-3 bg-danger/5 border border-danger/20 rounded-xl">
+              <AlertCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
+              <p className="text-[13px] text-danger">{err}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-border bg-background/40">
+          <button
+            onClick={onClose}
+            className="h-10 px-4 text-[13px] font-medium text-muted hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={downloadCsv}
+              disabled={busy !== null || !validRange}
+              className="inline-flex items-center gap-2 h-10 px-4 bg-surface text-foreground text-[13px] font-semibold rounded-xl border border-border hover:border-accent/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {busy === 'csv' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 text-accent-warm" />}
+              Download CSV
+            </button>
+            <button
+              onClick={downloadPdf}
+              disabled={busy !== null || !validRange}
+              className="inline-flex items-center gap-2 h-10 px-5 bg-primary text-white text-[13px] font-semibold rounded-xl shadow-sm hover:bg-primary-light transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {busy === 'pdf' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              Download PDF
             </button>
           </div>
         </div>

@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, resolvePhotoUrl, type Directorate } from '@/lib/api';
 import { cn, formatTime, formatDate } from '@/lib/utils';
-import { generateCSV, downloadCSV } from '@/lib/csv';
-import { generateAttendancePdf } from '@/lib/pdf';
+import { downloadCSV } from '@/lib/csv';
+import { generateAttendancePdf, type AttendanceSegment } from '@/lib/pdf';
 import { useAuthStore } from '@/stores/auth';
 import { SettingsModal, type AppSettings } from './SettingsModal';
 import {
@@ -47,6 +47,7 @@ interface DirBreakdown {
 export function AttendanceTab() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [dirFilter, setDirFilter] = useState('');
+  const [segment, setSegment] = useState<AttendanceSegment>('staff');
   const [monthlyUser, setMonthlyUser] = useState<{ id: string; name: string } | null>(null);
   const [pdfExporting, setPdfExporting] = useState(false);
   const [search, setSearch] = useState('');
@@ -69,22 +70,22 @@ export function AttendanceTab() {
   }, []);
 
   const { data: overviewData } = useQuery({
-    queryKey: ['attendance', 'today', selectedDate],
-    queryFn: () => api.get<TodayOverview>(`/attendance/today`),
+    queryKey: ['attendance', 'today', selectedDate, segment],
+    queryFn: () => api.get<TodayOverview>(`/attendance/today?user_type=${segment}`),
   });
 
   const { data: recordsData, isLoading } = useQuery({
-    queryKey: ['attendance', 'records', selectedDate, dirFilter],
+    queryKey: ['attendance', 'records', selectedDate, dirFilter, segment],
     queryFn: () => {
-      let url = `/attendance/records?date=${selectedDate}`;
+      let url = `/attendance/records?date=${selectedDate}&user_type=${segment}`;
       if (dirFilter) url += `&directorate_id=${dirFilter}`;
       return api.get<AttendanceRecord[]>(url);
     },
   });
 
   const { data: dirData } = useQuery({
-    queryKey: ['attendance', 'by-directorate', selectedDate],
-    queryFn: () => api.get<DirBreakdown[]>(`/attendance/by-directorate?date=${selectedDate}`),
+    queryKey: ['attendance', 'by-directorate', selectedDate, segment],
+    queryFn: () => api.get<DirBreakdown[]>(`/attendance/by-directorate?date=${selectedDate}&user_type=${segment}`),
   });
 
   const { data: dirsData } = useQuery({
@@ -117,6 +118,12 @@ export function AttendanceTab() {
     );
   }, [records, search]);
 
+  function segmentFilenameSlug(): string {
+    if (segment === 'nss') return 'NSS-Attendance';
+    if (segment === 'all') return 'Attendance-All';
+    return 'Attendance';
+  }
+
   function exportAttendanceCSV() {
     const source = filteredRecords;
     const headers = ['Name', 'Staff ID', 'Directorate', 'Clock In', 'Clock Out', 'Late', 'Left Early', 'Streak', 'Photo URL'];
@@ -132,15 +139,15 @@ export function AttendanceTab() {
       resolvePhotoUrl(r.clock_in_photo) ?? '',
     ]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${c}"`).join(',')).join('\n');
-    downloadCSV(csv, `OHCS-Attendance-${selectedDate}.csv`);
+    downloadCSV(csv, `OHCS-${segmentFilenameSlug()}-${selectedDate}.csv`);
   }
 
   async function exportAttendancePDF() {
     if (!overview || pdfExporting) return;
     setPdfExporting(true);
     try {
-      const doc = await generateAttendancePdf(selectedDate, filteredRecords, overview);
-      doc.save(`OHCS-Attendance-${selectedDate}.pdf`);
+      const doc = await generateAttendancePdf(selectedDate, filteredRecords, overview, segment);
+      doc.save(`OHCS-${segmentFilenameSlug()}-${selectedDate}.pdf`);
     } finally {
       setPdfExporting(false);
     }
@@ -148,6 +155,9 @@ export function AttendanceTab() {
 
   return (
     <div className="space-y-6">
+      {/* Staff / NSS / All segment pill */}
+      <SegmentToggle value={segment} onChange={setSegment} />
+
       {/* Date picker + export */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -500,6 +510,89 @@ function MonthlyReportModal({ userId, userName, onClose }: { userId: string; use
             </div>
           </div>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SegmentToggle({ value, onChange }: {
+  value: AttendanceSegment;
+  onChange: (next: AttendanceSegment) => void;
+}) {
+  const options: Array<{ key: AttendanceSegment; label: string }> = [
+    { key: 'staff', label: 'Staff' },
+    { key: 'nss', label: 'NSS' },
+    { key: 'all', label: 'All' },
+  ];
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<Record<AttendanceSegment, HTMLButtonElement | null>>({
+    staff: null, nss: null, all: null,
+  });
+  const [underline, setUnderline] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
+
+  // Recompute underline position when value changes or layout settles.
+  useLayoutEffect(() => {
+    const btn = buttonRefs.current[value];
+    const container = containerRef.current;
+    if (!btn || !container) return;
+    const btnRect = btn.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    setUnderline({ left: btnRect.left - containerRect.left, width: btnRect.width });
+  }, [value]);
+
+  // Re-measure on resize so the underline never desyncs.
+  useEffect(() => {
+    function onResize() {
+      const btn = buttonRefs.current[value];
+      const container = containerRef.current;
+      if (!btn || !container) return;
+      const btnRect = btn.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      setUnderline({ left: btnRect.left - containerRect.left, width: btnRect.width });
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [value]);
+
+  return (
+    <div className="flex">
+      <div
+        ref={containerRef}
+        role="tablist"
+        aria-label="Attendance segment"
+        className="relative inline-flex items-center bg-surface rounded-2xl border border-border shadow-sm p-1"
+      >
+        {/* Animated gold underline */}
+        <span
+          aria-hidden
+          className="absolute bottom-0 h-[2px] rounded-full transition-all duration-300 ease-out"
+          style={{
+            left: underline.left,
+            width: underline.width,
+            background: 'linear-gradient(90deg, #D4A017, #F5D76E 50%, #D4A017)',
+            transform: 'translateY(-2px)',
+          }}
+        />
+        {options.map(opt => {
+          const active = opt.key === value;
+          return (
+            <button
+              key={opt.key}
+              ref={el => { buttonRefs.current[opt.key] = el; }}
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(opt.key)}
+              className={cn(
+                'relative h-10 px-5 rounded-xl text-[13px] font-semibold transition-colors duration-200',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                active ? 'text-primary' : 'text-muted hover:text-foreground',
+              )}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

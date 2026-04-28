@@ -249,6 +249,134 @@ adminNssRoutes.get('/today', async (c) => {
 });
 
 /* ------------------------------------------------------------------ */
+/*  Range export — GET /api/admin/nss/export                           */
+/*                                                                      */
+/*  Roll-up of NSS attendance over a date range, optionally scoped to  */
+/*  one directorate. Used by the F&A admin to download NSS-only PDFs/  */
+/*  CSVs.                                                               */
+/* ------------------------------------------------------------------ */
+
+interface NssExportRow {
+  user_id: string;
+  name: string;
+  nss_number: string | null;
+  directorate_abbr: string | null;
+  nss_start_date: string | null;
+  nss_end_date: string | null;
+  current_streak: number;
+  clock_ins: number;
+  late_count: number;
+  absent_days: number;
+}
+
+adminNssRoutes.get('/export', async (c) => {
+  const forbidden = requireRole(c, 'superadmin', 'f_and_a_admin');
+  if (forbidden) return forbidden;
+
+  const from = c.req.query('from');
+  const to = c.req.query('to');
+  const directorateId = c.req.query('directorate_id') ?? null;
+
+  if (!from || !to) {
+    return error(c, 'MISSING_RANGE', 'Both from and to query params are required (YYYY-MM-DD)', 400);
+  }
+  if (!isValidIsoDate(from) || !isValidIsoDate(to)) {
+    return error(c, 'INVALID_DATE', 'from and to must be ISO YYYY-MM-DD', 400);
+  }
+  if (to < from) {
+    return error(c, 'INVALID_RANGE', '"to" must be on or after "from"', 400);
+  }
+
+  // Cap span at 366 days inclusive.
+  const fromMs = new Date(`${from}T00:00:00Z`).getTime();
+  const toMs = new Date(`${to}T00:00:00Z`).getTime();
+  const spanDays = Math.round((toMs - fromMs) / 86400_000) + 1;
+  if (spanDays > 366) {
+    return error(c, 'RANGE_TOO_LARGE', 'Date range may not exceed 366 days', 400);
+  }
+
+  const settings = await getAppSettings(c.env);
+  const lateAfter = toSqlTime(settings.late_threshold_time);
+
+  // Working days in the range = Monday..Friday count between [from, to] inclusive.
+  // Computed in JS to avoid SQLite timezone surprises.
+  let workingDays = 0;
+  for (let t = fromMs; t <= toMs; t += 86400_000) {
+    const dow = new Date(t).getUTCDay(); // 0 = Sun, 6 = Sat
+    if (dow !== 0 && dow !== 6) workingDays += 1;
+  }
+
+  // Aggregate per-user clock activity inside the range.
+  // We only count one clock-in per (user, day) for the totals.
+  const where: string[] = [`u.user_type = 'nss'`];
+  const params: unknown[] = [];
+
+  if (directorateId) {
+    where.push('u.directorate_id = ?');
+    params.push(directorateId);
+  }
+
+  const sql = `
+    WITH nss_clock_in_days AS (
+      SELECT cr.user_id, DATE(cr.timestamp) AS d, MIN(TIME(cr.timestamp)) AS first_in
+      FROM clock_records cr
+      INNER JOIN users u ON u.id = cr.user_id AND u.user_type = 'nss'
+      WHERE cr.type = 'clock_in'
+        AND DATE(cr.timestamp) BETWEEN ? AND ?
+      GROUP BY cr.user_id, DATE(cr.timestamp)
+    )
+    SELECT u.id AS user_id, u.name, u.nss_number,
+           d.abbreviation AS directorate_abbr,
+           u.nss_start_date, u.nss_end_date, u.current_streak,
+           COALESCE(COUNT(ci.d), 0) AS clock_ins,
+           COALESCE(SUM(CASE WHEN ci.first_in > ? THEN 1 ELSE 0 END), 0) AS late_count
+    FROM users u
+    LEFT JOIN directorates d ON u.directorate_id = d.id
+    LEFT JOIN nss_clock_in_days ci ON ci.user_id = u.id
+    WHERE ${where.join(' AND ')}
+    GROUP BY u.id
+    ORDER BY d.abbreviation ASC, u.name ASC
+  `;
+
+  const result = await c.env.DB
+    .prepare(sql)
+    .bind(from, to, lateAfter, ...params)
+    .all<{
+      user_id: string;
+      name: string;
+      nss_number: string | null;
+      directorate_abbr: string | null;
+      nss_start_date: string | null;
+      nss_end_date: string | null;
+      current_streak: number;
+      clock_ins: number;
+      late_count: number;
+    }>();
+
+  const rows: NssExportRow[] = (result.results ?? []).map(r => ({
+    user_id: r.user_id,
+    name: r.name,
+    nss_number: r.nss_number,
+    directorate_abbr: r.directorate_abbr,
+    nss_start_date: r.nss_start_date,
+    nss_end_date: r.nss_end_date,
+    current_streak: r.current_streak ?? 0,
+    clock_ins: r.clock_ins ?? 0,
+    late_count: r.late_count ?? 0,
+    // Absent = working days they missed during the range, clamped at 0.
+    // (We don't subtract their posting window here; F&A wants a quick rollup.)
+    absent_days: Math.max(0, workingDays - (r.clock_ins ?? 0)),
+  }));
+
+  return success(c, {
+    range: { from, to, working_days: workingDays },
+    directorate_id: directorateId,
+    total_users: rows.length,
+    rows,
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /*  Recent clock activity — GET /api/admin/nss/:id/activity            */
 /*                                                                      */
 /*  Last 14 days of clock_records for an NSS user.                     */
