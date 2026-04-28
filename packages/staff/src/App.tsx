@@ -5,6 +5,7 @@ import { LoginPage } from './pages/LoginPage';
 import { ClockPage } from './pages/ClockPage';
 import { useAuthStore } from './stores/auth';
 import { OfflineBanner } from './components/OfflineBanner';
+import { InstallPrompt } from './components/InstallPrompt';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 15_000, retry: 1 } },
@@ -49,6 +50,7 @@ export function App() {
           <Route path="/" element={<ProtectedRoute><ClockPage /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
+      <InstallPrompt />
     </QueryClientProvider>
   );
 }
