@@ -13,8 +13,12 @@ const NAV_ITEMS = [
   { to: '/reports', icon: FileText, label: 'Reports' },
 ];
 
-const ADMIN_NAV = [
+const ADMIN_NAV_SUPER = [
   { to: '/admin', icon: Settings, label: 'Admin' },
+];
+
+const ADMIN_NAV_F_AND_A = [
+  { to: '/admin?tab=nss', icon: Settings, label: 'NSS Admin' },
 ];
 
 interface SidebarProps {
@@ -25,6 +29,8 @@ export function Sidebar({ forceExpanded }: SidebarProps) {
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const isSuperadmin = user?.role === 'superadmin';
+  const isFAndAAdmin = user?.role === 'f_and_a_admin';
+  const canSeeAdmin = isSuperadmin || isFAndAAdmin;
   const { isCollapsed, toggleCollapse } = useSidebarStore();
 
   const collapsed = forceExpanded ? false : isCollapsed;
@@ -88,10 +94,10 @@ export function Sidebar({ forceExpanded }: SidebarProps) {
         ))}
 
         {/* Admin section */}
-        {isSuperadmin && (
+        {canSeeAdmin && (
           <>
             <div className="h-[1px] w-full bg-white/8 my-2" />
-            {ADMIN_NAV.map((item) => (
+            {(isSuperadmin ? ADMIN_NAV_SUPER : ADMIN_NAV_F_AND_A).map((item) => (
               <NavItem key={item.to} {...item} collapsed={collapsed} />
             ))}
           </>

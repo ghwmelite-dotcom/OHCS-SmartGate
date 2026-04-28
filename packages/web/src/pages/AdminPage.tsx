@@ -1,25 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
+import { useAuthStore } from '@/stores/auth';
 import { DirectoratesTab } from '@/components/admin/DirectoratesTab';
 import { BulkImportTab } from '@/components/admin/BulkImportTab';
 import { AttendanceTab } from '@/components/admin/AttendanceTab';
-import { NssRegistrationModal } from '@/components/admin/NssRegistrationModal';
+import { NssTab } from '@/components/admin/NssTab';
 import { UserRoleToggle } from '@/components/admin/UserRoleToggle';
 import {
   Users,
   UserPlus,
-  Shield,
   Pencil,
   Power,
   X,
-  Check,
-  KeyRound,
-  GraduationCap,
 } from 'lucide-react';
 
 interface UserRecord {
@@ -68,8 +66,69 @@ const editUserSchema = z.object({
 });
 type EditUserForm = z.infer<typeof editUserSchema>;
 
+type AdminTab = 'users' | 'org' | 'attendance' | 'nss' | 'import';
+
 export function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'users' | 'org' | 'attendance' | 'import'>('users');
+  const user = useAuthStore(s => s.user);
+  const role = user?.role ?? '';
+  const isFAndA = role === 'f_and_a_admin';
+  const isSuperadmin = role === 'superadmin';
+
+  // Tab visibility:
+  // - superadmin: all tabs
+  // - f_and_a_admin: NSS only (everything else hidden — they cannot manage system users)
+  // - other roles: shouldn't reach this page (Sidebar gates the link), but render NSS as a safe default if they do
+  const tabs = useMemo<{ value: AdminTab; label: string }[]>(() => {
+    if (isSuperadmin) {
+      return [
+        { value: 'users', label: 'Users' },
+        { value: 'org', label: 'Org Entities' },
+        { value: 'attendance', label: 'Attendance' },
+        { value: 'nss', label: 'NSS' },
+        { value: 'import', label: 'Bulk Import' },
+      ];
+    }
+    return [{ value: 'nss', label: 'NSS' }];
+  }, [isSuperadmin]);
+
+  // F&A admin defaults to NSS; superadmin defaults to ?tab= or 'users'.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const initialTab: AdminTab = (() => {
+    const fromUrl = searchParams.get('tab') as AdminTab | null;
+    const allowed = tabs.map(t => t.value);
+    if (fromUrl && allowed.includes(fromUrl)) return fromUrl;
+    if (isFAndA) return 'nss';
+    return 'users';
+  })();
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
+
+  // If the role can't see the chosen tab, snap to a permitted one
+  useEffect(() => {
+    const allowed = tabs.map(t => t.value);
+    if (!allowed.includes(activeTab)) {
+      setActiveTab(allowed[0] ?? 'nss');
+    }
+  }, [tabs, activeTab]);
+
+  // Reflect tab in URL (replace, don't push, to keep history clean)
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    if (params.get('tab') !== activeTab) {
+      params.set('tab', activeTab);
+      setSearchParams(params, { replace: true });
+    }
+  }, [activeTab, searchParams, setSearchParams]);
+
+  // Hard-block users who shouldn't be here at all (Sidebar already hides the
+  // link, but a direct URL can still reach the route).
+  useEffect(() => {
+    if (!isSuperadmin && !isFAndA) {
+      navigate('/', { replace: true });
+    }
+  }, [isSuperadmin, isFAndA, navigate]);
+
+  if (!isSuperadmin && !isFAndA) return null;
 
   return (
     <div className="space-y-6">
@@ -78,18 +137,17 @@ export function AdminPage() {
           <h1 className="text-[28px] font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
             Administration
           </h1>
-          <p className="text-[15px] text-muted mt-0.5">Manage users, directorates, and officers</p>
+          <p className="text-[15px] text-muted mt-0.5">
+            {isFAndA
+              ? 'NSS personnel oversight'
+              : 'Manage users, directorates, and officers'}
+          </p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-surface rounded-xl border border-border p-1 w-fit animate-fade-in-up stagger-1">
-        {([
-          { value: 'users' as const, label: 'Users' },
-          { value: 'org' as const, label: 'Org Entities' },
-          { value: 'attendance' as const, label: 'Attendance' },
-          { value: 'import' as const, label: 'Bulk Import' },
-        ]).map(tab => (
+        {tabs.map(tab => (
           <button
             key={tab.value}
             onClick={() => setActiveTab(tab.value)}
@@ -105,10 +163,11 @@ export function AdminPage() {
         ))}
       </div>
 
-      {activeTab === 'users' && <UsersTab />}
-      {activeTab === 'org' && <DirectoratesTab />}
-      {activeTab === 'attendance' && <AttendanceTab />}
-      {activeTab === 'import' && <BulkImportTab />}
+      {activeTab === 'users' && isSuperadmin && <UsersTab />}
+      {activeTab === 'org' && isSuperadmin && <DirectoratesTab />}
+      {activeTab === 'attendance' && isSuperadmin && <AttendanceTab />}
+      {activeTab === 'nss' && <NssTab />}
+      {activeTab === 'import' && isSuperadmin && <BulkImportTab />}
     </div>
   );
 }
@@ -117,7 +176,6 @@ export function AdminPage() {
 function UsersTab() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [showNss, setShowNss] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -137,15 +195,8 @@ function UsersTab() {
 
   return (
     <div className="space-y-6">
-      {/* Add User / Register NSS buttons */}
+      {/* Add User button (NSS registration moved to NSS tab) */}
       <div className="flex justify-end gap-3">
-        <button
-          onClick={() => setShowNss(true)}
-          className="inline-flex items-center gap-2 h-11 px-5 bg-surface text-foreground text-[14px] font-semibold rounded-xl border border-border hover:border-primary/40 transition-all active:scale-[0.98]"
-        >
-          <GraduationCap className="h-4.5 w-4.5 text-primary" />
-          Register NSS
-        </button>
         <button
           onClick={() => { setShowCreate(true); setEditingUser(null); }}
           className="inline-flex items-center gap-2 h-11 px-5 bg-primary text-white text-[14px] font-semibold rounded-xl hover:bg-primary-light transition-all shadow-lg shadow-primary/15 active:scale-[0.98]"
@@ -154,8 +205,6 @@ function UsersTab() {
           Add User
         </button>
       </div>
-
-      {showNss && <NssRegistrationModal onClose={() => setShowNss(false)} />}
 
       {/* Create / Edit modal */}
       {showCreate && (

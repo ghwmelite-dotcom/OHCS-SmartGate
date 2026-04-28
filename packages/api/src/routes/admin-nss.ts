@@ -5,6 +5,7 @@ import type { Env, SessionData } from '../types';
 import { success, error, created, notFound } from '../lib/response';
 import { hashPin } from '../services/auth';
 import { requireRole } from '../lib/require-role';
+import { getAppSettings, toSqlTime } from '../services/settings';
 
 export const adminNssRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
@@ -192,6 +193,118 @@ adminNssRoutes.get('/', async (c) => {
 
   const result = await c.env.DB.prepare(sql).bind(...params).all<NssUserRow>();
   return success(c, result.results ?? []);
+});
+
+/* ------------------------------------------------------------------ */
+/*  Today board — GET /api/admin/nss/today                             */
+/*                                                                      */
+/*  Active NSS personnel + today's clock_in / clock_out / late flag.    */
+/*  Late uses the configured late_threshold_time from app_settings.    */
+/* ------------------------------------------------------------------ */
+
+interface NssTodayRow {
+  user_id: string;
+  name: string;
+  nss_number: string | null;
+  directorate_abbr: string | null;
+  nss_end_date: string | null;
+  clock_in_at: string | null;
+  clock_out_at: string | null;
+  is_late: number;
+}
+
+adminNssRoutes.get('/today', async (c) => {
+  const forbidden = requireRole(c, 'superadmin', 'f_and_a_admin');
+  if (forbidden) return forbidden;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const settings = await getAppSettings(c.env);
+  const lateAfter = toSqlTime(settings.late_threshold_time);
+
+  const sql = `
+    SELECT u.id AS user_id, u.name, u.nss_number,
+           d.abbreviation AS directorate_abbr,
+           u.nss_end_date,
+           ci.timestamp AS clock_in_at,
+           co.timestamp AS clock_out_at,
+           CASE WHEN ci.timestamp IS NOT NULL AND TIME(ci.timestamp) > ? THEN 1 ELSE 0 END AS is_late
+    FROM users u
+    LEFT JOIN directorates d ON u.directorate_id = d.id
+    LEFT JOIN clock_records ci
+      ON ci.user_id = u.id AND ci.type = 'clock_in' AND DATE(ci.timestamp) = ?
+    LEFT JOIN clock_records co
+      ON co.user_id = u.id AND co.type = 'clock_out' AND DATE(co.timestamp) = ?
+    WHERE u.user_type = 'nss'
+      AND u.is_active = 1
+      AND (u.nss_end_date IS NULL OR u.nss_end_date >= ?)
+    ORDER BY u.name ASC
+  `;
+
+  const result = await c.env.DB
+    .prepare(sql)
+    .bind(lateAfter, today, today, today)
+    .all<NssTodayRow>();
+
+  return success(c, result.results ?? []);
+});
+
+/* ------------------------------------------------------------------ */
+/*  Recent clock activity — GET /api/admin/nss/:id/activity            */
+/*                                                                      */
+/*  Last 14 days of clock_records for an NSS user.                     */
+/* ------------------------------------------------------------------ */
+
+interface NssActivityRow {
+  date: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  is_late: number;
+}
+
+adminNssRoutes.get('/:id/activity', async (c) => {
+  const forbidden = requireRole(c, 'superadmin', 'f_and_a_admin');
+  if (forbidden) return forbidden;
+
+  const id = c.req.param('id');
+  const existing = await c.env.DB
+    .prepare(`SELECT id, user_type FROM users WHERE id = ?`)
+    .bind(id)
+    .first<{ id: string; user_type: string }>();
+
+  if (!existing) return notFound(c, 'NSS user');
+  if (existing.user_type !== 'nss') {
+    return error(c, 'NOT_NSS', 'Target user is not an NSS personnel', 400);
+  }
+
+  const settings = await getAppSettings(c.env);
+  const lateAfter = toSqlTime(settings.late_threshold_time);
+
+  // Pull all clock records in the last 14 days, group by date in JS.
+  const since = new Date(Date.now() - 14 * 86400 * 1000).toISOString().slice(0, 10);
+  const records = await c.env.DB
+    .prepare(
+      `SELECT DATE(timestamp) AS date, type, TIME(timestamp) AS time
+       FROM clock_records
+       WHERE user_id = ? AND DATE(timestamp) >= ?
+       ORDER BY timestamp DESC`
+    )
+    .bind(id, since)
+    .all<{ date: string; type: string; time: string }>();
+
+  const days = new Map<string, NssActivityRow>();
+  for (const r of records.results ?? []) {
+    const day = days.get(r.date) ?? { date: r.date, clock_in: null, clock_out: null, is_late: 0 };
+    if (r.type === 'clock_in') {
+      day.clock_in = r.time;
+      day.is_late = r.time > lateAfter ? 1 : 0;
+    } else if (r.type === 'clock_out') {
+      day.clock_out = r.time;
+    }
+    days.set(r.date, day);
+  }
+
+  const out = Array.from(days.values()).sort((a, b) => b.date.localeCompare(a.date));
+  return success(c, out);
 });
 
 /* ------------------------------------------------------------------ */
