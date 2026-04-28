@@ -301,7 +301,7 @@ export function ClockPage() {
           </div>
           <div>
             <h1 className="text-[16px] font-bold text-white leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>Staff Attendance</h1>
-            <p className="text-[10px] text-[#D4A017]/80 tracking-[0.25em] uppercase mt-0.5">OHCS Clock System</p>
+            <p className="text-[10px] text-[#D4A017]/80 tracking-[0.25em] uppercase mt-0.5">OHCS ClockIn System</p>
           </div>
         </div>
       </div>

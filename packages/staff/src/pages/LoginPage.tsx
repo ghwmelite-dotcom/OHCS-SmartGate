@@ -125,7 +125,7 @@ export function LoginPage() {
             <img src="/ohcs-logo.jpg" alt="OHCS" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "'Playfair Display', serif" }}>Staff Attendance</h1>
-          <p className="text-[11px] text-[#D4A017]/70 tracking-[0.2em] uppercase mt-1">OHCS Clock System</p>
+          <p className="text-[11px] text-[#D4A017]/70 tracking-[0.2em] uppercase mt-1">OHCS ClockIn System</p>
         </div>
 
         <div className="bg-white/[0.08] backdrop-blur-sm rounded-2xl p-6 border border-white/10">
