@@ -170,10 +170,12 @@ authRoutes.post('/logout', async (c) => {
   return success(c, { message: 'Logged out' });
 });
 
-// Change PIN
+// Change PIN — current_pin allows 4–6 digits so NSS personnel can swap their
+// 6-digit F&A-issued PIN for a 4-digit one on first login. New PIN is always
+// 4 digits to match the staff PWA's keypad UX.
 const changePinSchema = z.object({
-  current_pin: z.string().length(4).regex(/^\d{4}$/),
-  new_pin: z.string().length(4).regex(/^\d{4}$/),
+  current_pin: z.string().regex(/^\d{4,6}$/, 'Current PIN must be 4–6 digits'),
+  new_pin: z.string().length(4).regex(/^\d{4}$/, 'New PIN must be 4 digits'),
 });
 
 authRoutes.post('/change-pin', zValidator('json', changePinSchema), async (c) => {

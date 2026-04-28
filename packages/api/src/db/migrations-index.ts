@@ -11,6 +11,8 @@ import clockIdempotency from './migration-clock-idempotency.sql';
 import visitsIdempotency from './migration-visits-idempotency.sql';
 import absenceNotices from './migration-absence-notices.sql';
 import notificationsIndex from './migration-notifications-index.sql';
+import appSettings from './migration-app-settings.sql';
+import webauthn from './migration-webauthn.sql';
 import nssFoundation from './migration-nss-foundation.sql';
 
 export const MIGRATIONS: Array<{ filename: string; sql: string }> = [
@@ -27,6 +29,8 @@ export const MIGRATIONS: Array<{ filename: string; sql: string }> = [
   { filename: 'migration-visits-idempotency.sql', sql: visitsIdempotency },
   { filename: 'migration-absence-notices.sql', sql: absenceNotices },
   { filename: 'migration-notifications-index.sql', sql: notificationsIndex },
+  { filename: 'migration-app-settings.sql', sql: appSettings },
+  { filename: 'migration-webauthn.sql', sql: webauthn },
   { filename: 'migration-nss-foundation.sql', sql: nssFoundation },
 ];
 

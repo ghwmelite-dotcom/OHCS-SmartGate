@@ -6,6 +6,18 @@ import { success, error } from '../lib/response';
 
 // Public — receives updates from Telegram
 export async function telegramWebhook(c: Context<{ Bindings: Env }>) {
+  // When TELEGRAM_WEBHOOK_SECRET is set, verify Telegram's
+  // X-Telegram-Bot-Api-Secret-Token header (set when registering the webhook).
+  // Until the secret is configured we leave the route open (current behaviour)
+  // so existing deployments don't break — flip on by setting the secret.
+  const expected = c.env.TELEGRAM_WEBHOOK_SECRET;
+  if (expected) {
+    const supplied = c.req.header('x-telegram-bot-api-secret-token');
+    if (supplied !== expected) {
+      return c.json({ ok: false }, 401);
+    }
+  }
+
   const body = await c.req.json() as {
     message?: { chat?: { id: number }; text?: string };
   };

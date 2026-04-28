@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, SessionData } from '../types';
 import { success } from '../lib/response';
+import { requireRole } from '../lib/require-role';
 
 export const reportRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
@@ -14,6 +15,8 @@ const reportSchema = z.object({
 });
 
 reportRoutes.get('/visits', zValidator('query', reportSchema), async (c) => {
+  const blocked = requireRole(c, 'superadmin', 'admin', 'director', 'receptionist');
+  if (blocked) return blocked;
   const { from, to, directorate_id, limit } = c.req.valid('query');
 
   let sql = `SELECT v.check_in_at, v.check_out_at, v.duration_minutes, v.status, v.badge_code,

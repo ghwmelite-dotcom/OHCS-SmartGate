@@ -153,7 +153,7 @@ export async function serveBadgePage(c: Context<{ Bindings: Env }>) {
 <body>
   <div class="badge">
     <div class="header">
-      <h1>OHCS SMARTGATE</h1>
+      <h1>OHCS VMS</h1>
       <div class="subtitle">Office of the Head of Civil Service, Ghana</div>
     </div>
     <div class="gold-accent"></div>

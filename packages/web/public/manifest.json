@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "OHCS SmartGate — Visitor Management System",
-  "short_name": "SmartGate",
+  "name": "OHCS VMS — Visitor Management System",
+  "short_name": "OHCS VMS",
   "description": "Visitor Management System for the Office of the Head of Civil Service, Ghana",
   "start_url": "/",
   "scope": "/",

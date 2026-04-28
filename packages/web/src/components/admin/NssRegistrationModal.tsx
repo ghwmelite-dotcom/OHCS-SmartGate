@@ -90,7 +90,7 @@ function downloadTemplate() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'smartgate-nss-template.csv';
+  a.download = 'ohcs-nss-template.csv';
   a.click();
   URL.revokeObjectURL(url);
 }

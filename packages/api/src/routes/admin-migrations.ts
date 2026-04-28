@@ -24,10 +24,19 @@ adminMigrationsRoutes.post('/run', async (c) => {
       continue;
     }
 
-    const statements = m.sql
+    // Strip whole-line `--` comments BEFORE splitting on `;\n`. The previous
+    // approach split first and then filtered chunks starting with `--`, which
+    // silently dropped any statement that shared a chunk with leading
+    // comments (i.e. nearly every migration in this repo).
+    const cleaned = m.sql
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('--'))
+      .join('\n');
+
+    const statements = cleaned
       .split(/;\s*\n/)
       .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith('--'));
+      .filter((s) => s.length > 0);
 
     try {
       for (const stmt of statements) {

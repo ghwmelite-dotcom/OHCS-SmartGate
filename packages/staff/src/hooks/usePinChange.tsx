@@ -72,7 +72,7 @@ export function PinChangeModal({ onClose, onSuccess, dismissable = true }: { onC
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Current PIN</label>
-                  <input type="password" required maxLength={4} value={currentPin}
+                  <input type="password" required maxLength={6} value={currentPin}
                     onChange={e => setCurrentPin(e.target.value.replace(/\D/g, ''))}
                     className="w-full h-12 px-4 rounded-xl border border-gray-200 bg-gray-50 text-center tracking-[0.5em] font-mono text-xl font-bold focus:outline-none focus:ring-2 focus:ring-[#1A4D2E]/20 focus:border-[#1A4D2E]"
                     inputMode="numeric" autoFocus />
@@ -92,7 +92,7 @@ export function PinChangeModal({ onClose, onSuccess, dismissable = true }: { onC
                     inputMode="numeric" />
                 </div>
                 {errorMsg && <p className="text-red-600 text-[13px] font-medium">{errorMsg}</p>}
-                <button type="submit" disabled={status === 'loading' || currentPin.length !== 4 || newPin.length !== 4 || confirmPin.length !== 4}
+                <button type="submit" disabled={status === 'loading' || currentPin.length < 4 || currentPin.length > 6 || newPin.length !== 4 || confirmPin.length !== 4}
                   className="w-full h-12 bg-[#1A4D2E] text-white rounded-xl font-bold text-[15px] hover:brightness-110 disabled:opacity-50 transition-all">
                   {status === 'loading' ? 'Changing...' : 'Change PIN'}
                 </button>
