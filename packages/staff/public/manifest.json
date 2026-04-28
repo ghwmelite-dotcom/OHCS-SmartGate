@@ -1,7 +1,7 @@
 {
   "id": "/",
   "name": "OHCS Staff Attendance",
-  "short_name": "OHCS Clock",
+  "short_name": "OHCS ClockIn",
   "description": "Staff attendance and clock-in system for OHCS",
   "start_url": "/",
   "scope": "/",
