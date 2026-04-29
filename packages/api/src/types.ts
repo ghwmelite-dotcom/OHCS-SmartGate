@@ -10,6 +10,9 @@ export interface Env {
   VAPID_PUBLIC_Y: string;
   VAPID_PRIVATE_D: string;
   VAPID_SUBJECT: string;
+  // Dev/staging only — accept any webauthn_assertion at clock-in for testing.
+  // Production refuses to start with this set to "true".
+  DEV_BYPASS_REAUTH?: string;
 }
 
 export type Role =

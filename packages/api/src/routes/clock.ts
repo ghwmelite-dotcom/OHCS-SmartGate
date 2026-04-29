@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import type { AuthenticationResponseJSON } from '@simplewebauthn/types';
 import type { Env, SessionData } from '../types';
 import { success, error } from '../lib/response';
 import { sendLateClockAlert } from '../services/reminders';
 import { getAppSettings, hhmmToMinutes } from '../services/settings';
+import { verifyClockWebAuthnAssertion, verifyClockPin } from '../services/clock-reauth';
 import { devLog } from '../lib/log';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
@@ -140,6 +142,11 @@ const clockSchema = z.object({
   longitude: z.number().min(-180).max(180),
   accuracy: z.number().min(0).optional(),
   idempotency_key: z.string().min(1).max(100).optional(),
+  // Re-auth + liveness (optional in soft-rollout; required when
+  // app_settings.clockin_reauth_enforce = 1).
+  prompt_id: z.string().uuid().optional(),
+  webauthn_assertion: z.unknown().optional(),
+  pin: z.string().min(4).max(10).optional(),
 });
 
 // Issue a fresh 2-digit prompt for the next clock-in. Single-use, 90s TTL
@@ -162,7 +169,11 @@ clockRoutes.post('/prompt', async (c) => {
 
 clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
   const session = c.get('session');
-  const { type, latitude, longitude, accuracy, idempotency_key } = c.req.valid('json');
+  const body = c.req.valid('json');
+  const { type, latitude, longitude, accuracy, idempotency_key } = body;
+  const promptId = body.prompt_id;
+  const webauthnAssertion = body.webauthn_assertion as AuthenticationResponseJSON | undefined;
+  const pin = body.pin;
 
   // Idempotency check — return existing record immediately (before geofence re-validation)
   if (idempotency_key) {
@@ -183,6 +194,61 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
         deduplicated: true,
       });
     }
+  }
+
+  // ---- Prompt + re-auth gate (post-idempotency, pre-geofence) ----
+  const settings = await getAppSettings(c.env);
+  const enforce = settings.clockin_reauth_enforce === 1;
+  const devBypass = c.env.DEV_BYPASS_REAUTH === 'true';
+
+  let promptValue: string | null = null;
+  let reauthMethod: 'webauthn' | 'pin' | null = null;
+
+  if (promptId) {
+    const raw = await c.env.KV.get(promptKey(promptId));
+    if (!raw) {
+      return error(c, 'PROMPT_NOT_FOUND', 'Your clock-in prompt has expired or was already used. Please try again.', 410);
+    }
+    const stored = JSON.parse(raw) as ClockPrompt;
+    if (stored.userId !== session.userId) {
+      return error(c, 'PROMPT_USER_MISMATCH', 'Prompt does not belong to this user', 403);
+    }
+    if (stored.expiresAt < Date.now()) {
+      await c.env.KV.delete(promptKey(promptId));
+      return error(c, 'PROMPT_EXPIRED', 'Your clock-in prompt has expired. Please try again.', 410);
+    }
+    promptValue = stored.value;
+  } else if (enforce) {
+    return error(c, 'PROMPT_REQUIRED', 'A fresh clock-in prompt is required.', 400);
+  }
+
+  // Re-auth: try WebAuthn first; on absence/failure, fall back to PIN.
+  if (webauthnAssertion && promptId) {
+    if (devBypass) {
+      reauthMethod = 'webauthn';
+    } else {
+      const outcome = await verifyClockWebAuthnAssertion(c, session.userId, promptId, webauthnAssertion);
+      if (outcome.ok) {
+        reauthMethod = 'webauthn';
+      } else if (pin === undefined && enforce) {
+        return error(c, 'REAUTH_FAILED', 'Biometric verification failed. Try your PIN.', 401);
+      }
+    }
+  }
+
+  if (reauthMethod === null && pin !== undefined) {
+    const outcome = await verifyClockPin(c.env, session.userId, pin, settings.clockin_pin_attempt_cap);
+    if (outcome.ok) {
+      reauthMethod = 'pin';
+    } else if (outcome.reason === 'rate_limited') {
+      return error(c, 'REAUTH_RATE_LIMITED', 'Too many wrong PIN attempts. Try again tomorrow.', 429);
+    } else if (enforce) {
+      return error(c, 'REAUTH_FAILED', 'PIN verification failed.', 401);
+    }
+  }
+
+  if (enforce && reauthMethod === null) {
+    return error(c, 'REAUTH_REQUIRED', 'Biometric or PIN verification is required to clock in.', 401);
   }
 
   // Reject clock-in if GPS is too imprecise to make a reliable call.
@@ -235,9 +301,24 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
   const id = crypto.randomUUID().replace(/-/g, '');
 
   await c.env.DB.prepare(
-    `INSERT INTO clock_records (id, user_id, type, latitude, longitude, within_geofence, idempotency_key)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).bind(id, session.userId, type, latitude, longitude, withinGeofence ? 1 : 0, idempotency_key ?? null).run();
+    `INSERT INTO clock_records (id, user_id, type, latitude, longitude, within_geofence, idempotency_key, prompt_value, reauth_method)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    id,
+    session.userId,
+    type,
+    latitude,
+    longitude,
+    withinGeofence ? 1 : 0,
+    idempotency_key ?? null,
+    promptValue,
+    reauthMethod,
+  ).run();
+
+  // Consume the prompt — single-use enforced by KV.delete after a successful insert.
+  if (promptId) {
+    await c.env.KV.delete(promptKey(promptId));
+  }
 
   // Update streak on clock-in
   if (type === 'clock_in') {
