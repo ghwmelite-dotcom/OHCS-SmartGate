@@ -31,6 +31,10 @@ interface AttendanceRecord {
   clock_in_time: string | null;
   clock_out_time: string | null;
   clock_in_photo: string | null;
+  clock_in_prompt: string | null;
+  clock_in_reauth_method: 'webauthn' | 'pin' | null;
+  clock_out_prompt: string | null;
+  clock_out_reauth_method: 'webauthn' | 'pin' | null;
   is_late: number;
   is_early_departure: number;
   current_streak: number;
@@ -345,6 +349,8 @@ export function AttendanceTab() {
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Clock In</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Clock Out</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Status</th>
+                  <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Prompt</th>
+                  <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Verified</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Streak</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Photo</th>
                 </tr>
@@ -395,6 +401,18 @@ export function AttendanceTab() {
                       ) : (
                         <span className="inline-flex items-center h-6 px-2.5 text-[10px] font-bold rounded-full bg-success/10 text-success">On Time</span>
                       )}
+                    </td>
+                    <td className="px-5 py-3 text-[13px] font-mono">
+                      {r.clock_in_prompt ?? <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-5 py-3">
+                      {r.clock_in_reauth_method === 'webauthn' && (
+                        <span className="inline-flex items-center gap-1 text-[12px] font-medium text-success">🔒 Bio</span>
+                      )}
+                      {r.clock_in_reauth_method === 'pin' && (
+                        <span className="inline-flex items-center gap-1 text-[12px] font-medium text-warning">🔢 PIN</span>
+                      )}
+                      {!r.clock_in_reauth_method && <span className="text-muted-foreground">—</span>}
                     </td>
                     <td className="px-5 py-3">
                       {r.current_streak > 0 ? (

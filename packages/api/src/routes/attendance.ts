@@ -110,6 +110,8 @@ attendanceRoutes.get('/records', async (c) => {
                     d.abbreviation as directorate_abbr,
                     ci.timestamp as clock_in_time, co.timestamp as clock_out_time,
                     ci.photo_url as clock_in_photo,
+                    ci.prompt_value as clock_in_prompt, ci.reauth_method as clock_in_reauth_method,
+                    co.prompt_value as clock_out_prompt, co.reauth_method as clock_out_reauth_method,
                     CASE WHEN TIME(ci.timestamp) > ? THEN 1 ELSE 0 END as is_late,
                     CASE WHEN co.timestamp IS NOT NULL AND TIME(co.timestamp) < ? THEN 1 ELSE 0 END as is_early_departure,
                     u.current_streak
