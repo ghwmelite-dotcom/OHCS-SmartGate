@@ -111,6 +111,28 @@ function distanceToNearestPolygonMeters(lat: number, lng: number): number {
   return min;
 }
 
+// ---- Clock-in re-auth + liveness prompt ----
+// 2-digit prompt (10..99) issued at the start of every clock-in. Must be
+// visible in the captured selfie. Stored single-use in KV with the user
+// binding so a session swap can't replay another user's prompt.
+
+interface ClockPrompt {
+  userId: string;
+  value: string;        // "10".."99"
+  expiresAt: number;    // unix ms
+}
+
+function generatePromptValue(): string {
+  const array = new Uint32Array(1);
+  crypto.getRandomValues(array);
+  // 10..99 inclusive
+  return String(10 + (array[0]! % 90));
+}
+
+function promptKey(promptId: string): string {
+  return `clock-prompt:${promptId}`;
+}
+
 // Clock in or out
 const clockSchema = z.object({
   type: z.enum(['clock_in', 'clock_out']),
@@ -118,6 +140,24 @@ const clockSchema = z.object({
   longitude: z.number().min(-180).max(180),
   accuracy: z.number().min(0).optional(),
   idempotency_key: z.string().min(1).max(100).optional(),
+});
+
+// Issue a fresh 2-digit prompt for the next clock-in. Single-use, 90s TTL
+// (configurable via app_settings.clockin_prompt_ttl_seconds).
+clockRoutes.post('/prompt', async (c) => {
+  const session = c.get('session');
+  const settings = await getAppSettings(c.env);
+  const ttl = Math.max(30, Math.min(300, settings.clockin_prompt_ttl_seconds));
+
+  const promptId = crypto.randomUUID();
+  const value = generatePromptValue();
+  const expiresAt = Date.now() + ttl * 1000;
+
+  const data: ClockPrompt = { userId: session.userId, value, expiresAt };
+  await c.env.KV.put(promptKey(promptId), JSON.stringify(data), { expirationTtl: ttl });
+
+  devLog(c.env, `[CLOCK_PROMPT] issued ${promptId} value=${value} ttl=${ttl}s user=${session.userId}`);
+  return success(c, { prompt_id: promptId, prompt_value: value, expires_at: expiresAt });
 });
 
 clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
