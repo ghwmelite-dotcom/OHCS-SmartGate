@@ -40,3 +40,62 @@ export const api = {
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   }),
 };
+
+// ---- Clock-in re-auth + liveness helpers ----
+
+export interface ClockPrompt {
+  promptId: string;
+  promptValue: string;
+  expiresAt: number;
+}
+
+/** Issue a fresh single-use prompt for the next clock-in. */
+export async function fetchClockPrompt(): Promise<ClockPrompt> {
+  const res = await api.post<{ prompt_id: string; prompt_value: string; expires_at: number }>('/clock/prompt');
+  if (!res.data) throw new Error('Empty prompt response');
+  return {
+    promptId: res.data.prompt_id,
+    promptValue: res.data.prompt_value,
+    expiresAt: res.data.expires_at,
+  };
+}
+
+export interface ClockSubmission {
+  type: 'clock_in' | 'clock_out';
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  idempotencyKey?: string;
+  promptId?: string;
+  webauthnAssertion?: unknown;   // AuthenticationResponseJSON from @simplewebauthn/browser
+  pin?: string;
+}
+
+export interface ClockResult {
+  id: string;
+  type: 'clock_in' | 'clock_out';
+  timestamp: string;
+  user_name: string;
+  staff_id: string;
+  within_geofence: boolean;
+  distance_meters: number;
+  streak: number;
+  longest_streak: number;
+  deduplicated?: boolean;
+}
+
+/** Submit a clock-in/out with optional re-auth + prompt fields. */
+export async function submitClock(input: ClockSubmission): Promise<ClockResult> {
+  const res = await api.post<ClockResult>('/clock/', {
+    type: input.type,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    accuracy: input.accuracy,
+    idempotency_key: input.idempotencyKey,
+    prompt_id: input.promptId,
+    webauthn_assertion: input.webauthnAssertion,
+    pin: input.pin,
+  });
+  if (!res.data) throw new Error('Empty clock response');
+  return res.data;
+}
