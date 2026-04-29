@@ -124,7 +124,14 @@ app.post('/api/admin/send-daily-summary', async (c) => {
 // Cron trigger handler for daily attendance summary
 
 export default {
-  fetch: app.fetch,
+  async fetch(req: Request, env: Env, ctx: ExecutionContext) {
+    // Production guard: DEV_BYPASS_REAUTH bypasses WebAuthn signature
+    // verification for clock-in re-auth. Must never be true in production.
+    if (env.ENVIRONMENT === 'production' && env.DEV_BYPASS_REAUTH === 'true') {
+      return new Response('DEV_BYPASS_REAUTH must not be true in production', { status: 500 });
+    }
+    return app.fetch(req, env, ctx);
+  },
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil((async () => {
       switch (event.cron) {
