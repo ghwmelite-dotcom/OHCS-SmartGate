@@ -1,21 +1,34 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { startAuthentication } from '@simplewebauthn/browser';
 import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
 import { BottomNav } from '@/components/BottomNav';
 import { AbsenceNoticeButton } from '@/components/AbsenceNoticeButton';
 import { LetterReveal } from '@/components/LetterReveal';
 import { MagneticButton } from '@/components/MagneticButton';
 import { ConfettiBurst } from '@/components/ConfettiBurst';
-import { api } from '@/lib/api';
+import { ReauthModal } from '@/components/ReauthModal';
+import { WebAuthnNudgeBanner } from '@/components/WebAuthnNudgeBanner';
+import { api, fetchClockPrompt, type ClockPrompt } from '@/lib/api';
 import { getToken } from '@/lib/tokenStore';
 import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, formatTime } from '@/lib/utils';
 import { withinGeofence, distanceToPolygonMeters, MAX_GPS_ACCURACY_METERS } from '@/lib/geofence';
 import { useAuthStore } from '@/stores/auth';
 import {
-  LogIn, LogOut, MapPin, Camera, RotateCcw, Check, Flame, Trophy,
+  LogIn, LogOut, MapPin, Camera, Flame, Trophy,
   Clock, CheckCircle2, Loader2,
 } from 'lucide-react';
+
+// Encode a UTF-8 string to base64url for WebAuthn challenge.
+// We use the prompt_id UUID directly as the challenge so the assertion is
+// cryptographically bound to the same prompt being shown in the photo.
+function utf8ToBase64Url(s: string): string {
+  const bytes = new TextEncoder().encode(s);
+  let binary = '';
+  bytes.forEach((b) => { binary += String.fromCharCode(b); });
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+}
 
 interface ClockStatus {
   clocked_in: boolean;
@@ -38,7 +51,7 @@ interface ClockResult {
   longest_streak: number;
 }
 
-type Phase = 'idle' | 'locating' | 'photo' | 'submitting' | 'success' | 'error';
+type Phase = 'idle' | 'locating' | 'photo' | 'reauth' | 'submitting' | 'success' | 'error';
 
 export function ClockPage() {
   const queryClient = useQueryClient();
@@ -50,6 +63,9 @@ export function ClockPage() {
   const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState<ClockPrompt | null>(null);
+  const [reauthModalOpen, setReauthModalOpen] = useState(false);
+  const [showNudge, setShowNudge] = useState(false);
   const [result, setResult] = useState<ClockResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -69,8 +85,15 @@ export function ClockPage() {
   const clockMutation = useMutation({
     mutationFn: async (data: {
       type: string; latitude: number; longitude: number; accuracy: number; photo: Blob | null;
+      promptId?: string; webauthnAssertion?: unknown; pin?: string;
     }) => {
-      const { photo, ...clockData } = data;
+      const { photo, promptId, webauthnAssertion, pin, ...rest } = data;
+      const clockData = {
+        ...rest,
+        prompt_id: promptId,
+        webauthn_assertion: webauthnAssertion,
+        pin,
+      };
       const res = await apiOrQueue<ClockResult>('clock-queue', '/clock', clockData);
       if (!('queued' in res) && res.data && photo) {
         const apiBase = import.meta.env.PROD ? 'https://ohcs-smartgate-api.ohcsghana-main.workers.dev' : '';
@@ -138,7 +161,9 @@ export function ClockPage() {
     setErrorMsg('');
     setPhotoBlob(null);
     setPhotoPreview(null);
+    setPrompt(null);
     setResult(null);
+    setShowNudge(false);
 
     // Watch for the first fix that is good enough to trust (≤15m), or settle
     // for the best reading we've seen after 20s. Tight target because the
@@ -151,7 +176,7 @@ export function ClockPage() {
     let watchId: number | null = null;
     let settled = false;
 
-    const finish = (pos: { lat: number; lng: number; accuracy: number }) => {
+    const finish = async (pos: { lat: number; lng: number; accuracy: number }) => {
       if (settled) return;
       settled = true;
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
@@ -172,6 +197,18 @@ export function ClockPage() {
       }
 
       setLocation(pos);
+
+      // Fetch a fresh single-use prompt before the camera opens so it can be
+      // shown to the staff member during capture. If fetch fails (offline or
+      // server hiccup), proceed without it — soft-rollout server accepts
+      // no-prompt requests; enforce mode will reject with a clear message.
+      try {
+        const fresh = await fetchClockPrompt();
+        setPrompt(fresh);
+      } catch (e) {
+        console.warn('[clock] prompt fetch failed, proceeding without:', e);
+      }
+
       startCamera(type);
     };
 
@@ -228,7 +265,7 @@ export function ClockPage() {
   function capturePhoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) { submitClock(); return; }
+    if (!video || !canvas) { tryReauthAndSubmit(null); return; }
 
     const size = Math.min(video.videoWidth, video.videoHeight);
     const sx = (video.videoWidth - size) / 2;
@@ -246,13 +283,50 @@ export function ClockPage() {
         setPhotoPreview(canvas.toDataURL('image/jpeg', 0.8));
       }
       stopCamera();
-      submitClock(blob ?? undefined);
+      tryReauthAndSubmit(blob ?? null);
     }, 'image/jpeg', 0.8);
   }
 
-  function submitClock(photo?: Blob) {
+  // Attempt WebAuthn re-auth; on failure or no platform authenticator,
+  // open the PIN fallback modal. Photo has already been captured by this
+  // point — the biometric prompt fires AFTER capture so the same person
+  // who took the selfie is the one approving the submission.
+  async function tryReauthAndSubmit(photo: Blob | null) {
     if (!location) return;
-    if (photo) setPhotoBlob(photo);
+    setPhase('reauth');
+
+    if (prompt) {
+      try {
+        const assertion = await startAuthentication({
+          optionsJSON: {
+            challenge: utf8ToBase64Url(prompt.promptId),
+            rpId: window.location.hostname,
+            userVerification: 'required',
+            allowCredentials: [],
+            timeout: 60000,
+          },
+        });
+        submitClock(photo, { promptId: prompt.promptId, webauthnAssertion: assertion });
+        return;
+      } catch (e) {
+        console.warn('[clock] webauthn failed/cancelled, falling through to PIN:', e);
+      }
+    }
+
+    // No prompt OR WebAuthn rejected → PIN modal (or, under soft-rollout
+    // with no prompt, just submit legacy).
+    if (!prompt) {
+      submitClock(photo);
+      return;
+    }
+    setReauthModalOpen(true);
+  }
+
+  function submitClock(
+    photo: Blob | null,
+    opts?: { promptId?: string; webauthnAssertion?: unknown; pin?: string },
+  ) {
+    if (!location) return;
     setPhase('submitting');
     clockMutation.mutate({
       type: clockType,
@@ -260,7 +334,53 @@ export function ClockPage() {
       longitude: location.lng,
       accuracy: location.accuracy,
       photo: photo ?? photoBlob ?? null,
+      promptId: opts?.promptId ?? prompt?.promptId,
+      webauthnAssertion: opts?.webauthnAssertion,
+      pin: opts?.pin,
     });
+  }
+
+  // Called by ReauthModal when the user submits a PIN. We bypass clockMutation
+  // here so we can return a precise pass/fail to the modal (wrong-PIN should
+  // shake and stay open; rate-limit should show a specific message; success
+  // closes and proceeds through the same submit pipeline as the WebAuthn path).
+  async function handlePinSubmit(pin: string): Promise<{ ok: boolean; rateLimited?: boolean; message?: string }> {
+    if (!prompt || !location) return { ok: false, message: 'No active prompt' };
+    try {
+      // Use clockMutation.mutateAsync so the photo upload + cache invalidation
+      // pipeline still runs on success. On error we inspect the code and
+      // tell the modal whether to shake or hard-fail.
+      await clockMutation.mutateAsync({
+        type: clockType,
+        latitude: location.lat,
+        longitude: location.lng,
+        accuracy: location.accuracy,
+        photo: photoBlob,
+        promptId: prompt.promptId,
+        pin,
+      });
+      setReauthModalOpen(false);
+      setShowNudge(true);   // PIN fallback used → nudge biometric setup
+      return { ok: true };
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      if (err.code === 'REAUTH_RATE_LIMITED') {
+        setReauthModalOpen(false);
+        setErrorMsg('Too many wrong PIN attempts. Try again tomorrow.');
+        setPhase('error');
+        return { ok: false, rateLimited: true, message: err.message };
+      }
+      if (err.code === 'REAUTH_FAILED') {
+        // Wrong PIN — keep modal open, shake, let user retry.
+        setPhase('reauth');
+        return { ok: false, message: 'Wrong PIN' };
+      }
+      // Any other error — bail out to error phase.
+      setReauthModalOpen(false);
+      setErrorMsg(err.message ?? 'Failed to clock');
+      setPhase('error');
+      return { ok: false, message: err.message };
+    }
   }
 
   function resetState() {
@@ -430,6 +550,15 @@ export function ClockPage() {
           {/* PHOTO CAPTURE */}
           {phase === 'photo' && (
             <div className="text-center space-y-4 w-full">
+              {prompt && (
+                <div className="mx-auto max-w-xs rounded-2xl bg-amber-50 border-2 border-amber-200 p-3">
+                  <p className="text-[12px] text-amber-900 uppercase tracking-wider font-semibold">Show this number to the camera</p>
+                  <p className="text-5xl font-extrabold text-amber-900 tracking-widest my-1" style={{ fontFamily: "'Playfair Display', serif" }}>
+                    {prompt.promptValue}
+                  </p>
+                  <p className="text-[10px] text-amber-800/80">Hold it on screen, write on paper, or signal with fingers</p>
+                </div>
+              )}
               <p className="text-[15px] font-semibold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
                 📸 Quick selfie for verification
               </p>
@@ -440,7 +569,7 @@ export function ClockPage() {
               </div>
               <canvas ref={canvasRef} className="hidden" />
               <div className="flex gap-3 justify-center">
-                <button onClick={() => { stopCamera(); submitClock(); }}
+                <button onClick={() => { stopCamera(); tryReauthAndSubmit(null); }}
                   className="h-10 px-5 text-[13px] font-medium text-muted border border-border rounded-xl hover:text-foreground transition-all">
                   Skip
                 </button>
@@ -450,6 +579,15 @@ export function ClockPage() {
                   Capture
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* RE-AUTH (between photo and submit) */}
+          {phase === 'reauth' && !reauthModalOpen && (
+            <div className="text-center">
+              <Loader2 className="h-10 w-10 text-primary mx-auto mb-4 animate-spin" />
+              <p className="text-[16px] font-semibold text-foreground">🔐 Verifying biometric…</p>
+              <p className="text-[12px] text-muted mt-1">Authorize on your device</p>
             </div>
           )}
 
@@ -529,6 +667,18 @@ export function ClockPage() {
         </div>
       </div>
       <BottomNav />
+
+      <ReauthModal
+        isOpen={reauthModalOpen}
+        onClose={() => { setReauthModalOpen(false); resetState(); }}
+        onSubmit={handlePinSubmit}
+        fallback
+      />
+
+      <WebAuthnNudgeBanner
+        shouldShow={showNudge && phase === 'success'}
+        onEnroll={() => { setShowNudge(false); /* Settings menu has BiometricToggle */ }}
+      />
     </div>
   );
 }
