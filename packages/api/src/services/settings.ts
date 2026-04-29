@@ -6,9 +6,13 @@ export interface AppSettings {
   work_end_time: string;        // "HH:MM"
   updated_by: string | null;
   updated_at: string;
+  // Clock-in re-auth + liveness (added by migration-clockin-reauth.sql)
+  clockin_reauth_enforce: number;       // 0 = soft (record but don't reject), 1 = enforce
+  clockin_pin_attempt_cap: number;      // PIN re-auth attempts allowed before lockout
+  clockin_prompt_ttl_seconds: number;   // Prompt validity window
 }
 
-const KV_KEY = 'app-settings:v1';
+const KV_KEY = 'app-settings:v2';
 const KV_TTL = 300;          // 5 min KV cache
 const MEMO_TTL_MS = 60_000;  // 60s per-isolate memo
 
@@ -18,6 +22,9 @@ const DEFAULTS: AppSettings = {
   work_end_time: '17:00',
   updated_by: null,
   updated_at: '1970-01-01T00:00:00Z',
+  clockin_reauth_enforce: 0,
+  clockin_pin_attempt_cap: 5,
+  clockin_prompt_ttl_seconds: 90,
 };
 
 let memo: { value: AppSettings; ts: number } | null = null;
@@ -33,7 +40,9 @@ export async function getAppSettings(env: Env): Promise<AppSettings> {
   }
 
   const row = await env.DB.prepare(
-    'SELECT work_start_time, late_threshold_time, work_end_time, updated_by, updated_at FROM app_settings WHERE id = 1'
+    `SELECT work_start_time, late_threshold_time, work_end_time, updated_by, updated_at,
+            clockin_reauth_enforce, clockin_pin_attempt_cap, clockin_prompt_ttl_seconds
+     FROM app_settings WHERE id = 1`
   ).first<AppSettings>();
 
   const settings = row ?? DEFAULTS;
