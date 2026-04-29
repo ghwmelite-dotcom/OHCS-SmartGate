@@ -14,6 +14,7 @@ import notificationsIndex from './migration-notifications-index.sql';
 import appSettings from './migration-app-settings.sql';
 import webauthn from './migration-webauthn.sql';
 import nssFoundation from './migration-nss-foundation.sql';
+import clockinReauth from './migration-clockin-reauth.sql';
 
 export const MIGRATIONS: Array<{ filename: string; sql: string }> = [
   { filename: 'migration-applied-migrations.sql', sql: appliedMigrations },
@@ -32,6 +33,7 @@ export const MIGRATIONS: Array<{ filename: string; sql: string }> = [
   { filename: 'migration-app-settings.sql', sql: appSettings },
   { filename: 'migration-webauthn.sql', sql: webauthn },
   { filename: 'migration-nss-foundation.sql', sql: nssFoundation },
+  { filename: 'migration-clockin-reauth.sql', sql: clockinReauth },
 ];
 
 export async function sha256Hex(input: string): Promise<string> {

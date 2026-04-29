@@ -141,6 +141,8 @@ CREATE TABLE IF NOT EXISTS clock_records (
     photo_url       TEXT,
     device_info     TEXT,
     idempotency_key TEXT,
+    prompt_value    TEXT,
+    reauth_method   TEXT CHECK (reauth_method IN ('webauthn','pin') OR reauth_method IS NULL),
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_clock_user_date ON clock_records(user_id, timestamp DESC);
@@ -216,12 +218,15 @@ CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user_id ON webauthn_credenti
 -- App settings (singleton)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS app_settings (
-    id                  INTEGER PRIMARY KEY CHECK (id = 1),
-    work_start_time     TEXT NOT NULL,
-    late_threshold_time TEXT NOT NULL,
-    work_end_time       TEXT NOT NULL,
-    updated_by          TEXT,
-    updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    id                          INTEGER PRIMARY KEY CHECK (id = 1),
+    work_start_time             TEXT NOT NULL,
+    late_threshold_time         TEXT NOT NULL,
+    work_end_time               TEXT NOT NULL,
+    updated_by                  TEXT,
+    updated_at                  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    clockin_reauth_enforce      INTEGER NOT NULL DEFAULT 0 CHECK(clockin_reauth_enforce IN (0,1)),
+    clockin_pin_attempt_cap     INTEGER NOT NULL DEFAULT 5,
+    clockin_prompt_ttl_seconds  INTEGER NOT NULL DEFAULT 90
 );
 
 INSERT OR IGNORE INTO app_settings (id, work_start_time, late_threshold_time, work_end_time)
