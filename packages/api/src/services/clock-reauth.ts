@@ -24,7 +24,8 @@ export type ReauthOutcome =
  * assertion to the same prompt the staff member is showing in the photo.
  */
 export async function verifyClockWebAuthnAssertion(
-  c: Context<{ Bindings: Env }>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  c: Context<{ Bindings: Env; Variables: any }>,
   userId: string,
   promptId: string,
   assertion: AuthenticationResponseJSON,

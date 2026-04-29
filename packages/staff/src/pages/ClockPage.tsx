@@ -252,8 +252,8 @@ export function ClockPage() {
         videoRef.current.srcObject = stream;
       }
     } catch {
-      // Camera failed — proceed without photo
-      submitClock();
+      // Camera failed — proceed without photo, through the re-auth pipeline
+      tryReauthAndSubmit(null);
     }
   }, []);
 
