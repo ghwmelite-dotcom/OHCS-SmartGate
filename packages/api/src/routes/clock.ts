@@ -8,6 +8,8 @@ import { sendLateClockAlert } from '../services/reminders';
 import { getAppSettings, hhmmToMinutes } from '../services/settings';
 import { verifyClockWebAuthnAssertion, verifyClockPin } from '../services/clock-reauth';
 import { devLog } from '../lib/log';
+import { ALL_CHALLENGES } from '../services/liveness';
+import type { LivenessChallenge } from '../services/liveness/types';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
@@ -114,21 +116,20 @@ function distanceToNearestPolygonMeters(lat: number, lng: number): number {
 }
 
 // ---- Clock-in re-auth + liveness prompt ----
-// 2-digit prompt (10..99) issued at the start of every clock-in. Must be
-// visible in the captured selfie. Stored single-use in KV with the user
-// binding so a session swap can't replay another user's prompt.
+// A randomised liveness challenge (one of 4 actions) is issued at the start
+// of every clock-in. Stored single-use in KV, bound to the userId so a
+// session swap cannot replay another user's prompt.
 
 interface ClockPrompt {
   userId: string;
-  value: string;        // "10".."99"
-  expiresAt: number;    // unix ms
+  expiresAt: number;            // unix ms
+  challengeAction: LivenessChallenge;
 }
 
-function generatePromptValue(): string {
-  const array = new Uint32Array(1);
-  crypto.getRandomValues(array);
-  // 10..99 inclusive
-  return String(10 + (array[0]! % 90));
+function chooseChallenge(): LivenessChallenge {
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return ALL_CHALLENGES[arr[0]! % ALL_CHALLENGES.length]!;
 }
 
 function promptKey(promptId: string): string {
@@ -149,22 +150,20 @@ const clockSchema = z.object({
   pin: z.string().min(4).max(10).optional(),
 });
 
-// Issue a fresh 2-digit prompt for the next clock-in. Single-use, 90s TTL
-// (configurable via app_settings.clockin_prompt_ttl_seconds).
 clockRoutes.post('/prompt', async (c) => {
   const session = c.get('session');
   const settings = await getAppSettings(c.env);
   const ttl = Math.max(30, Math.min(300, settings.clockin_prompt_ttl_seconds));
 
   const promptId = crypto.randomUUID();
-  const value = generatePromptValue();
+  const challengeAction = chooseChallenge();
   const expiresAt = Date.now() + ttl * 1000;
 
-  const data: ClockPrompt = { userId: session.userId, value, expiresAt };
+  const data: ClockPrompt = { userId: session.userId, expiresAt, challengeAction };
   await c.env.KV.put(promptKey(promptId), JSON.stringify(data), { expirationTtl: ttl });
 
-  devLog(c.env, `[CLOCK_PROMPT] issued ${promptId} value=${value} ttl=${ttl}s user=${session.userId}`);
-  return success(c, { prompt_id: promptId, prompt_value: value, expires_at: expiresAt });
+  devLog(c.env, `[CLOCK_PROMPT] issued ${promptId} challenge=${challengeAction} ttl=${ttl}s user=${session.userId}`);
+  return success(c, { prompt_id: promptId, challenge_action: challengeAction, expires_at: expiresAt });
 });
 
 clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
