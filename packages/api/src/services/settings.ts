@@ -10,6 +10,10 @@ export interface AppSettings {
   clockin_reauth_enforce: number;       // 0 = soft (record but don't reject), 1 = enforce
   clockin_pin_attempt_cap: number;      // PIN re-auth attempts allowed before lockout
   clockin_prompt_ttl_seconds: number;   // Prompt validity window
+  // Passive liveness (Plan 1.5) — added by migration-passive-liveness.sql
+  clockin_passive_liveness_enforce: number;        // 0 = shadow, 1 = enforce
+  clockin_liveness_review_cap_per_week: number;    // manual-review escape valve
+  clockin_liveness_model_version: string;          // 'buffalo_s_v1' etc — surfaced into signature
 }
 
 const KV_KEY = 'app-settings:v2';
@@ -25,6 +29,9 @@ const DEFAULTS: AppSettings = {
   clockin_reauth_enforce: 0,
   clockin_pin_attempt_cap: 5,
   clockin_prompt_ttl_seconds: 90,
+  clockin_passive_liveness_enforce: 0,
+  clockin_liveness_review_cap_per_week: 2,
+  clockin_liveness_model_version: 'buffalo_s_v1',
 };
 
 let memo: { value: AppSettings; ts: number } | null = null;
@@ -41,7 +48,9 @@ export async function getAppSettings(env: Env): Promise<AppSettings> {
 
   const row = await env.DB.prepare(
     `SELECT work_start_time, late_threshold_time, work_end_time, updated_by, updated_at,
-            clockin_reauth_enforce, clockin_pin_attempt_cap, clockin_prompt_ttl_seconds
+            clockin_reauth_enforce, clockin_pin_attempt_cap, clockin_prompt_ttl_seconds,
+            clockin_passive_liveness_enforce, clockin_liveness_review_cap_per_week,
+            clockin_liveness_model_version
      FROM app_settings WHERE id = 1`
   ).first<AppSettings>();
 
