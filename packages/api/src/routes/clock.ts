@@ -514,6 +514,63 @@ clockRoutes.get('/my-status', async (c) => {
   });
 });
 
+// ---- Admin helpers ----
+function requireAdmin(c: { get: (key: 'session') => SessionData }) {
+  const role = c.get('session').role;
+  return role === 'superadmin' || role === 'admin';
+}
+
+// Admin: aggregate liveness metrics for the last `days` (default 7, max 30).
+clockRoutes.get('/admin/liveness-metrics', async (c) => {
+  if (!requireAdmin(c)) return error(c, 'FORBIDDEN', 'Admin access required', 403);
+
+  const days = Math.min(30, Math.max(1, Number(c.req.query('days') ?? 7)));
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const rows = await c.env.DB.prepare(
+    `SELECT liveness_decision, liveness_challenge, liveness_signature
+     FROM clock_records
+     WHERE timestamp >= ? AND liveness_decision IS NOT NULL`
+  ).bind(since).all<{ liveness_decision: string; liveness_challenge: string | null; liveness_signature: string | null }>();
+
+  const all = rows.results ?? [];
+  const total = all.length;
+  const passes = all.filter((r) => r.liveness_decision === 'pass').length;
+  const reviews = all.filter((r) => r.liveness_decision === 'manual_review').length;
+  const skipped = all.filter((r) => r.liveness_decision === 'skipped').length;
+
+  const perChallenge: Record<string, { total: number; pass: number }> = {};
+  const msSamples: number[] = [];
+
+  for (const r of all) {
+    if (r.liveness_challenge) {
+      const slot = perChallenge[r.liveness_challenge] ?? { total: 0, pass: 0 };
+      slot.total += 1;
+      if (r.liveness_decision === 'pass') slot.pass += 1;
+      perChallenge[r.liveness_challenge] = slot;
+    }
+    if (r.liveness_signature) {
+      try {
+        const sig = JSON.parse(r.liveness_signature) as { ms_total?: number };
+        if (typeof sig.ms_total === 'number') msSamples.push(sig.ms_total);
+      } catch { /* ignore parse errors */ }
+    }
+  }
+
+  msSamples.sort((a, b) => a - b);
+  const median = msSamples.length ? msSamples[Math.floor(msSamples.length / 2)]! : 0;
+
+  return success(c, {
+    total,
+    pass_rate: total ? passes / total : 0,
+    review_rate: total ? reviews / total : 0,
+    skipped_rate: total ? skipped / total : 0,
+    per_challenge: perChallenge,
+    median_ms: median,
+    days,
+  });
+});
+
 // Get my history
 clockRoutes.get('/my-history', async (c) => {
   const session = c.get('session');

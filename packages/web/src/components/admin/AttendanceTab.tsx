@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect, Fragment } from 'react';
 import { LivenessEvidenceCard } from './LivenessEvidenceCard';
+import { LivenessMetricsWidget } from './LivenessMetricsWidget';
 import { useQuery } from '@tanstack/react-query';
 import { api, resolvePhotoUrl, type Directorate } from '@/lib/api';
 import { cn, formatTime, formatDate } from '@/lib/utils';
@@ -163,6 +164,8 @@ export function AttendanceTab() {
 
   return (
     <div className="space-y-6">
+      <LivenessMetricsWidget />
+
       {/* Staff / NSS / All segment pill */}
       <SegmentToggle value={segment} onChange={setSegment} />
 
