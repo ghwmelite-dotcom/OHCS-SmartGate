@@ -43,19 +43,25 @@ export const api = {
 
 // ---- Clock-in re-auth + liveness helpers ----
 
+export type LivenessChallenge = 'blink' | 'turn_left' | 'turn_right' | 'smile';
+
 export interface ClockPrompt {
   promptId: string;
-  promptValue: string;
+  challengeAction: LivenessChallenge;
   expiresAt: number;
 }
 
 /** Issue a fresh single-use prompt for the next clock-in. */
 export async function fetchClockPrompt(): Promise<ClockPrompt> {
-  const res = await api.post<{ prompt_id: string; prompt_value: string; expires_at: number }>('/clock/prompt');
+  const res = await api.post<{
+    prompt_id: string;
+    challenge_action: LivenessChallenge;
+    expires_at: number;
+  }>('/clock/prompt');
   if (!res.data) throw new Error('Empty prompt response');
   return {
     promptId: res.data.prompt_id,
-    promptValue: res.data.prompt_value,
+    challengeAction: res.data.challenge_action,
     expiresAt: res.data.expires_at,
   };
 }
@@ -67,8 +73,9 @@ export interface ClockSubmission {
   accuracy?: number;
   idempotencyKey?: string;
   promptId?: string;
-  webauthnAssertion?: unknown;   // AuthenticationResponseJSON from @simplewebauthn/browser
+  webauthnAssertion?: unknown;
   pin?: string;
+  livenessBurst?: { frame0: Blob; frame1: Blob; frame2: Blob; claimedCompleted: boolean };
 }
 
 export interface ClockResult {
@@ -82,11 +89,12 @@ export interface ClockResult {
   streak: number;
   longest_streak: number;
   deduplicated?: boolean;
+  liveness_decision?: 'pass' | 'fail' | 'manual_review' | 'skipped' | null;
 }
 
-/** Submit a clock-in/out with optional re-auth + prompt fields. */
+/** Submit a clock-in/out — multipart when liveness frames are attached, JSON otherwise. */
 export async function submitClock(input: ClockSubmission): Promise<ClockResult> {
-  const res = await api.post<ClockResult>('/clock/', {
+  const payload = {
     type: input.type,
     latitude: input.latitude,
     longitude: input.longitude,
@@ -95,7 +103,38 @@ export async function submitClock(input: ClockSubmission): Promise<ClockResult> 
     prompt_id: input.promptId,
     webauthn_assertion: input.webauthnAssertion,
     pin: input.pin,
+  };
+
+  const token = getToken();
+  const headers: Record<string, string> = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  let body: BodyInit;
+  if (input.livenessBurst) {
+    const fd = new FormData();
+    fd.append('payload', JSON.stringify(payload));
+    fd.append('frame_0', input.livenessBurst.frame0, 'frame_0.jpg');
+    fd.append('frame_1', input.livenessBurst.frame1, 'frame_1.jpg');
+    fd.append('frame_2', input.livenessBurst.frame2, 'frame_2.jpg');
+    fd.append('challenge_action_completed', input.livenessBurst.claimedCompleted ? 'true' : 'false');
+    body = fd;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(payload);
+  }
+
+  const res = await fetch(`${API_BASE}/clock/`, {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+    body,
   });
-  if (!res.data) throw new Error('Empty clock response');
-  return res.data;
+  const json = await res.json() as ApiResponse<ClockResult>;
+  if (!res.ok || json.error) {
+    if (res.status === 401) window.location.href = '/login';
+    throw new ApiError(json.error?.code ?? 'UNKNOWN', json.error?.message ?? 'Error', res.status);
+  }
+  if (!json.data) throw new Error('Empty clock response');
+  return json.data;
 }
