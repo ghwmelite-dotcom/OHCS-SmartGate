@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { FirstLoginPinPrompt } from '@/components/FirstLoginPinPrompt';
@@ -9,14 +9,16 @@ import { MagneticButton } from '@/components/MagneticButton';
 import { ConfettiBurst } from '@/components/ConfettiBurst';
 import { ReauthModal } from '@/components/ReauthModal';
 import { WebAuthnNudgeBanner } from '@/components/WebAuthnNudgeBanner';
-import { api, fetchClockPrompt, type ClockPrompt } from '@/lib/api';
+import { LivenessCapture } from '@/lib/liveness/LivenessCapture';
+import type { FrameBurst } from '@/lib/liveness/types';
+import { api, fetchClockPrompt, submitClock as apiSubmitClock, type ClockPrompt } from '@/lib/api';
 import { getToken } from '@/lib/tokenStore';
 import { apiOrQueue, type ApiOrQueueResult } from '@/lib/offlineQueue';
 import { cn, formatTime } from '@/lib/utils';
 import { withinGeofence, distanceToPolygonMeters, MAX_GPS_ACCURACY_METERS } from '@/lib/geofence';
 import { useAuthStore } from '@/stores/auth';
 import {
-  LogIn, LogOut, MapPin, Camera, Flame, Trophy,
+  LogIn, LogOut, MapPin, Flame, Trophy,
   Clock, CheckCircle2, Loader2,
 } from 'lucide-react';
 
@@ -62,15 +64,18 @@ export function ClockPage() {
   const [clockType, setClockType] = useState<'clock_in' | 'clock_out'>('clock_in');
   const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<ClockPrompt | null>(null);
   const [reauthModalOpen, setReauthModalOpen] = useState(false);
   const [showNudge, setShowNudge] = useState(false);
   const [result, setResult] = useState<ClockResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [frameBurst, setFrameBurst] = useState<FrameBurst | null>(null);
+  const [claimedCompleted, setClaimedCompleted] = useState(false);
+  const [requestedManualReview, setRequestedManualReview] = useState(false);
+  // Refs mirror liveness state so tryReauthAndSubmit can read them synchronously
+  const frameBurstRef = useRef<FrameBurst | null>(null);
+  const claimedCompletedRef = useRef(false);
+  const requestedManualReviewRef = useRef(false);
 
   const { data: statusData } = useQuery({
     queryKey: ['clock-status'],
@@ -84,10 +89,29 @@ export function ClockPage() {
 
   const clockMutation = useMutation({
     mutationFn: async (data: {
-      type: string; latitude: number; longitude: number; accuracy: number; photo: Blob | null;
+      type: 'clock_in' | 'clock_out'; latitude: number; longitude: number; accuracy: number; photo: Blob | null;
       promptId?: string; webauthnAssertion?: unknown; pin?: string;
+      livenessBurst?: { frame0: Blob; frame1: Blob; frame2: Blob; claimedCompleted: boolean };
     }) => {
-      const { photo, promptId, webauthnAssertion, pin, ...rest } = data;
+      const { photo, promptId, webauthnAssertion, pin, livenessBurst, ...rest } = data;
+
+      // When frames are present we go straight to the multipart endpoint —
+      // FormData can't be serialised into the offline queue.
+      if (livenessBurst) {
+        const clockResult = await apiSubmitClock({
+          type: rest.type,
+          latitude: rest.latitude,
+          longitude: rest.longitude,
+          accuracy: rest.accuracy,
+          promptId,
+          webauthnAssertion,
+          pin,
+          livenessBurst,
+        });
+        return { ok: true as const, data: clockResult as ClockResult };
+      }
+
+      // No burst — use the offline-capable JSON path.
       const clockData = {
         ...rest,
         prompt_id: promptId,
@@ -129,18 +153,15 @@ export function ClockPage() {
           longest_streak: status?.longest_streak ?? 0,
         } as ClockResult);
         setPhase('success');
-        stopCamera();
         return;
       }
       setResult(res.data);
       setPhase('success');
       queryClient.invalidateQueries({ queryKey: ['clock-status'] });
-      stopCamera();
     },
     onError: (err) => {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to clock');
       setPhase('error');
-      stopCamera();
     },
   });
 
@@ -154,16 +175,32 @@ export function ClockPage() {
     return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
   }, [queryClient]);
 
+  // If we land in the photo phase with no prompt (offline / fetch failed),
+  // skip liveness and proceed directly to re-auth.
+  useEffect(() => {
+    if (phase === 'photo' && !prompt) {
+      tryReauthAndSubmit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, prompt]);
+
   // Get GPS location
   function startClock(type: 'clock_in' | 'clock_out') {
     setClockType(type);
     setPhase('locating');
     setErrorMsg('');
     setPhotoBlob(null);
-    setPhotoPreview(null);
     setPrompt(null);
     setResult(null);
     setShowNudge(false);
+    setFrameBurst(null);
+    setClaimedCompleted(false);
+    setRequestedManualReview(false);
+    frameBurstRef.current = null;
+    claimedCompletedRef.current = false;
+    requestedManualReviewRef.current = false;
+    // Warm MediaPipe WASM in parallel with geolocation
+    void import('../lib/liveness/mediapipeRunner');
 
     // Watch for the first fix that is good enough to trust (≤15m), or settle
     // for the best reading we've seen after 20s. Tight target because the
@@ -209,7 +246,7 @@ export function ClockPage() {
         console.warn('[clock] prompt fetch failed, proceeding without:', e);
       }
 
-      startCamera(type);
+      setPhase('photo');
     };
 
     watchId = navigator.geolocation.watchPosition(
@@ -240,58 +277,11 @@ export function ClockPage() {
     }, SETTLE_MS);
   }
 
-  // Camera
-  const startCamera = useCallback(async (_type: string) => {
-    setPhase('photo');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 480 }, height: { ideal: 480 }, facingMode: 'user' },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch {
-      // Camera failed — proceed without photo, through the re-auth pipeline
-      tryReauthAndSubmit(null);
-    }
-  }, []);
-
-  function stopCamera() {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-  }
-
-  function capturePhoto() {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) { tryReauthAndSubmit(null); return; }
-
-    const size = Math.min(video.videoWidth, video.videoHeight);
-    const sx = (video.videoWidth - size) / 2;
-    const sy = (video.videoHeight - size) / 2;
-    canvas.width = 300;
-    canvas.height = 300;
-    const ctx = canvas.getContext('2d')!;
-    ctx.translate(300, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, sx, sy, size, size, 0, 0, 300, 300);
-
-    canvas.toBlob((blob) => {
-      if (blob) {
-        setPhotoBlob(blob);
-        setPhotoPreview(canvas.toDataURL('image/jpeg', 0.8));
-      }
-      stopCamera();
-      tryReauthAndSubmit(blob ?? null);
-    }, 'image/jpeg', 0.8);
-  }
-
   // Attempt WebAuthn re-auth; on failure or no platform authenticator,
-  // open the PIN fallback modal. Photo has already been captured by this
-  // point — the biometric prompt fires AFTER capture so the same person
-  // who took the selfie is the one approving the submission.
-  async function tryReauthAndSubmit(photo: Blob | null) {
+  // open the PIN fallback modal. LivenessCapture has already been completed by
+  // this point — the biometric prompt fires AFTER capture so the same person
+  // who performed the liveness action is the one approving the submission.
+  async function tryReauthAndSubmit() {
     if (!location) return;
     setPhase('reauth');
 
@@ -306,7 +296,7 @@ export function ClockPage() {
             timeout: 60000,
           },
         });
-        submitClock(photo, { promptId: prompt.promptId, webauthnAssertion: assertion });
+        submitClock({ promptId: prompt.promptId, webauthnAssertion: assertion });
         return;
       } catch (e) {
         console.warn('[clock] webauthn failed/cancelled, falling through to PIN:', e);
@@ -316,27 +306,36 @@ export function ClockPage() {
     // No prompt OR WebAuthn rejected → PIN modal (or, under soft-rollout
     // with no prompt, just submit legacy).
     if (!prompt) {
-      submitClock(photo);
+      submitClock();
       return;
     }
     setReauthModalOpen(true);
   }
 
   function submitClock(
-    photo: Blob | null,
     opts?: { promptId?: string; webauthnAssertion?: unknown; pin?: string },
   ) {
     if (!location) return;
     setPhase('submitting');
+    const burst = frameBurstRef.current;
+    const manualReview = requestedManualReviewRef.current;
     clockMutation.mutate({
       type: clockType,
       latitude: location.lat,
       longitude: location.lng,
       accuracy: location.accuracy,
-      photo: photo ?? photoBlob ?? null,
+      photo: photoBlob,
       promptId: opts?.promptId ?? prompt?.promptId,
       webauthnAssertion: opts?.webauthnAssertion,
       pin: opts?.pin,
+      ...(burst && !manualReview ? {
+        livenessBurst: {
+          frame0: burst.frame0,
+          frame1: burst.frame1,
+          frame2: burst.frame2,
+          claimedCompleted: claimedCompletedRef.current,
+        },
+      } : {}),
     });
   }
 
@@ -347,9 +346,11 @@ export function ClockPage() {
   async function handlePinSubmit(pin: string): Promise<{ ok: boolean; rateLimited?: boolean; message?: string }> {
     if (!prompt || !location) return { ok: false, message: 'No active prompt' };
     try {
-      // Use clockMutation.mutateAsync so the photo upload + cache invalidation
-      // pipeline still runs on success. On error we inspect the code and
-      // tell the modal whether to shake or hard-fail.
+      // Use clockMutation.mutateAsync so the cache invalidation pipeline still
+      // runs on success. On error we inspect the code and tell the modal
+      // whether to shake or hard-fail.
+      const burst = frameBurstRef.current;
+      const manualReview = requestedManualReviewRef.current;
       await clockMutation.mutateAsync({
         type: clockType,
         latitude: location.lat,
@@ -358,6 +359,14 @@ export function ClockPage() {
         photo: photoBlob,
         promptId: prompt.promptId,
         pin,
+        ...(burst && !manualReview ? {
+          livenessBurst: {
+            frame0: burst.frame0,
+            frame1: burst.frame1,
+            frame2: burst.frame2,
+            claimedCompleted: claimedCompletedRef.current,
+          },
+        } : {}),
       });
       setReauthModalOpen(false);
       setShowNudge(true);   // PIN fallback used → nudge biometric setup
@@ -387,9 +396,13 @@ export function ClockPage() {
     setPhase('idle');
     setErrorMsg('');
     setPhotoBlob(null);
-    setPhotoPreview(null);
     setResult(null);
-    stopCamera();
+    setFrameBurst(null);
+    setClaimedCompleted(false);
+    setRequestedManualReview(false);
+    frameBurstRef.current = null;
+    claimedCompletedRef.current = false;
+    requestedManualReviewRef.current = false;
   }
 
   const now = new Date();
@@ -547,38 +560,28 @@ export function ClockPage() {
             </div>
           )}
 
-          {/* PHOTO CAPTURE */}
-          {phase === 'photo' && (
-            <div className="text-center space-y-4 w-full">
-              {prompt && (
-                <div className="mx-auto max-w-xs rounded-2xl bg-amber-50 border-2 border-amber-200 p-3">
-                  <p className="text-[12px] text-amber-900 uppercase tracking-wider font-semibold">Show this number to the camera</p>
-                  <p className="text-5xl font-extrabold text-amber-900 tracking-widest my-1" style={{ fontFamily: "'Playfair Display', serif" }}>
-                    {prompt.promptValue}
-                  </p>
-                  <p className="text-[10px] text-amber-800/80">Hold it on screen, write on paper, or signal with fingers</p>
-                </div>
-              )}
-              <p className="text-[15px] font-semibold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-                📸 Quick selfie for verification
-              </p>
-              <div className="relative w-48 h-48 mx-auto rounded-3xl overflow-hidden bg-primary-deep">
-                <video ref={videoRef} autoPlay playsInline muted
-                  className="w-full h-full object-cover scale-x-[-1]" />
-                <div className="absolute inset-0 rounded-3xl border-2 border-dashed border-accent/30 pointer-events-none" />
-              </div>
-              <canvas ref={canvasRef} className="hidden" />
-              <div className="flex gap-3 justify-center">
-                <button onClick={() => { stopCamera(); tryReauthAndSubmit(null); }}
-                  className="h-10 px-5 text-[13px] font-medium text-muted border border-border rounded-xl hover:text-foreground transition-all">
-                  Skip
-                </button>
-                <button onClick={capturePhoto}
-                  className="h-12 px-8 bg-primary text-white text-[15px] font-bold rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center gap-2">
-                  <Camera className="h-5 w-5" />
-                  Capture
-                </button>
-              </div>
+          {/* PHOTO CAPTURE — liveness challenge */}
+          {phase === 'photo' && prompt && (
+            <div className="w-full aspect-square rounded-3xl overflow-hidden">
+              <LivenessCapture
+                challenge={prompt.challengeAction}
+                onComplete={(burst, completed) => {
+                  frameBurstRef.current = burst;
+                  claimedCompletedRef.current = completed;
+                  setFrameBurst(burst);
+                  setClaimedCompleted(completed);
+                  tryReauthAndSubmit();
+                }}
+                onCameraError={(err) => {
+                  console.warn('[clock] Camera unavailable for liveness:', err);
+                  tryReauthAndSubmit();
+                }}
+                onRequestManualReview={() => {
+                  requestedManualReviewRef.current = true;
+                  setRequestedManualReview(true);
+                  tryReauthAndSubmit();
+                }}
+              />
             </div>
           )}
 
@@ -618,11 +621,6 @@ export function ClockPage() {
                 </p>
                 <p className="text-[13px] text-muted mt-0.5">🪪 Staff ID: {result.staff_id}</p>
               </div>
-              {photoPreview && (
-                <div className="w-20 h-20 rounded-2xl overflow-hidden mx-auto border border-border">
-                  <img src={photoPreview} alt="" className="w-full h-full object-cover" />
-                </div>
-              )}
               {result.streak > 1 && (
                 <div className="flex items-center justify-center gap-2 px-4 py-2 bg-accent/10 rounded-full">
                   <Flame className="h-4 w-4 text-accent-warm" />
