@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/types';
 import type { Env, SessionData } from '../types';
@@ -8,8 +7,8 @@ import { sendLateClockAlert } from '../services/reminders';
 import { getAppSettings, hhmmToMinutes } from '../services/settings';
 import { verifyClockWebAuthnAssertion, verifyClockPin } from '../services/clock-reauth';
 import { devLog } from '../lib/log';
-import { ALL_CHALLENGES } from '../services/liveness';
-import type { LivenessChallenge } from '../services/liveness/types';
+import { ALL_CHALLENGES, verifyLivenessBurst, getReviewCount, incrementReviewCount } from '../services/liveness';
+import type { LivenessChallenge, LivenessSignature } from '../services/liveness/types';
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
@@ -166,9 +165,44 @@ clockRoutes.post('/prompt', async (c) => {
   return success(c, { prompt_id: promptId, challenge_action: challengeAction, expires_at: expiresAt });
 });
 
-clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
+clockRoutes.post('/', async (c) => {
   const session = c.get('session');
-  const body = c.req.valid('json');
+  const contentType = c.req.header('content-type') ?? '';
+  const isMultipart = contentType.includes('multipart/form-data');
+
+  let body: z.infer<typeof clockSchema>;
+  let frames: ArrayBuffer[] | null = null;
+
+  if (isMultipart) {
+    const form = await c.req.formData();
+    const payloadStr = form.get('payload');
+    if (typeof payloadStr !== 'string') {
+      return error(c, 'BAD_PAYLOAD', 'payload field missing', 400);
+    }
+    let parsed: unknown;
+    try { parsed = JSON.parse(payloadStr); } catch { return error(c, 'BAD_PAYLOAD', 'payload is not JSON', 400); }
+    const result = clockSchema.safeParse(parsed);
+    if (!result.success) return error(c, 'BAD_PAYLOAD', result.error.message, 400);
+    body = result.data;
+
+    const f0 = form.get('frame_0');
+    const f1 = form.get('frame_1');
+    const f2 = form.get('frame_2');
+    if (!(f0 instanceof Blob) || !(f1 instanceof Blob) || !(f2 instanceof Blob)) {
+      return error(c, 'MISSING_FRAMES', 'Three frames are required for liveness verification', 400);
+    }
+    const TOTAL_LIMIT = 600_000;
+    const total = f0.size + f1.size + f2.size;
+    if (total > TOTAL_LIMIT) return error(c, 'BURST_TOO_LARGE', 'Liveness burst exceeds size limit', 413);
+    frames = [await f0.arrayBuffer(), await f1.arrayBuffer(), await f2.arrayBuffer()];
+  } else {
+    let parsed: unknown;
+    try { parsed = await c.req.json(); } catch { return error(c, 'BAD_JSON', 'Invalid JSON body', 400); }
+    const result = clockSchema.safeParse(parsed);
+    if (!result.success) return error(c, 'BAD_PAYLOAD', result.error.message, 400);
+    body = result.data;
+  }
+
   const { type, latitude, longitude, accuracy, idempotency_key } = body;
   const promptId = body.prompt_id;
   const webauthnAssertion = body.webauthn_assertion as AuthenticationResponseJSON | undefined;
@@ -197,10 +231,11 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
 
   // ---- Prompt + re-auth gate (post-idempotency, pre-geofence) ----
   const settings = await getAppSettings(c.env);
-  const enforce = settings.clockin_reauth_enforce === 1;
+  const enforceReauth = settings.clockin_reauth_enforce === 1;
+  const enforceLiveness = settings.clockin_passive_liveness_enforce === 1;
   const devBypass = c.env.DEV_BYPASS_REAUTH === 'true';
 
-  let promptValue: string | null = null;
+  let challengeAction: LivenessChallenge | null = null;
   let reauthMethod: 'webauthn' | 'pin' | null = null;
 
   if (promptId) {
@@ -216,8 +251,8 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
       await c.env.KV.delete(promptKey(promptId));
       return error(c, 'PROMPT_EXPIRED', 'Your clock-in prompt has expired. Please try again.', 410);
     }
-    promptValue = stored.value;
-  } else if (enforce) {
+    challengeAction = stored.challengeAction;
+  } else if (enforceReauth) {
     return error(c, 'PROMPT_REQUIRED', 'A fresh clock-in prompt is required.', 400);
   }
 
@@ -229,7 +264,7 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
       const outcome = await verifyClockWebAuthnAssertion(c, session.userId, promptId, webauthnAssertion);
       if (outcome.ok) {
         reauthMethod = 'webauthn';
-      } else if (pin === undefined && enforce) {
+      } else if (pin === undefined && enforceReauth) {
         return error(c, 'REAUTH_FAILED', 'Biometric verification failed. Try your PIN.', 401);
       }
     }
@@ -241,13 +276,57 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
       reauthMethod = 'pin';
     } else if (outcome.reason === 'rate_limited') {
       return error(c, 'REAUTH_RATE_LIMITED', 'Too many wrong PIN attempts. Try again tomorrow.', 429);
-    } else if (enforce) {
+    } else if (enforceReauth) {
       return error(c, 'REAUTH_FAILED', 'PIN verification failed.', 401);
     }
   }
 
-  if (enforce && reauthMethod === null) {
+  if (enforceReauth && reauthMethod === null) {
     return error(c, 'REAUTH_REQUIRED', 'Biometric or PIN verification is required to clock in.', 401);
+  }
+
+  // ---- LIVENESS GATE ----
+  let livenessSignature: LivenessSignature | null = null;
+  let livenessDecision: LivenessSignature['decision'] | null = null;
+  let canonicalFrame: ArrayBuffer | null = null;
+
+  if (frames && challengeAction) {
+    const verification = await verifyLivenessBurst({
+      ai: c.env.AI,
+      frames,
+      challenge: challengeAction,
+      modelVersion: settings.clockin_liveness_model_version,
+    });
+    livenessSignature = verification.signature;
+    livenessDecision = verification.decision;
+    canonicalFrame = verification.canonicalFrame;
+
+    if (enforceLiveness && verification.decision === 'fail') {
+      return error(c, 'LIVENESS_FAILED', 'Liveness check failed. Please try again or submit for HR review.', 401);
+    }
+  } else if (enforceLiveness) {
+    livenessDecision = 'manual_review';
+    livenessSignature = {
+      v: 1,
+      challenge_action: challengeAction ?? 'blink',
+      challenge_completed: false,
+      motion_delta: 0,
+      face_score: 0,
+      sharpness: 0,
+      decision: 'manual_review',
+      model_version: settings.clockin_liveness_model_version,
+      screen_artifact_score: null,
+      ms_total: 0,
+    };
+  }
+
+  // Manual-review cap — check BEFORE geofence (matches plan flow)
+  if (livenessDecision === 'manual_review') {
+    const used = await getReviewCount(c.env.KV, session.userId);
+    if (used >= settings.clockin_liveness_review_cap_per_week) {
+      return error(c, 'LIVENESS_REVIEW_CAP', "You have reached this week's manual-review limit. Please contact HR.", 429);
+    }
+    await incrementReviewCount(c.env.KV, session.userId);
   }
 
   // Reject clock-in if GPS is too imprecise to make a reliable call.
@@ -255,7 +334,7 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     return error(
       c,
       'GPS_TOO_IMPRECISE',
-      `GPS accuracy is too poor (\u00B1${Math.round(accuracy)}m). Move somewhere with clearer sky and try again.`,
+      `GPS accuracy is too poor (±${Math.round(accuracy)}m). Move somewhere with clearer sky and try again.`,
       400,
     );
   }
@@ -268,7 +347,7 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
   devLog(c.env, `[CLOCK_GEO] inside=${inside} dist=${Math.round(distance)}m acc=${Math.round(acc)}m -> ${withinGeofence ? 'IN' : 'OUT'}`);
 
   if (!withinGeofence) {
-    const accStr = acc > 0 ? ` (GPS accuracy \u00B1${Math.round(acc)}m)` : '';
+    const accStr = acc > 0 ? ` (GPS accuracy ±${Math.round(acc)}m)` : '';
     return error(
       c,
       'OUTSIDE_GEOFENCE',
@@ -300,8 +379,10 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
   const id = crypto.randomUUID().replace(/-/g, '');
 
   await c.env.DB.prepare(
-    `INSERT INTO clock_records (id, user_id, type, latitude, longitude, within_geofence, idempotency_key, prompt_value, reauth_method)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO clock_records
+      (id, user_id, type, latitude, longitude, within_geofence, idempotency_key,
+       reauth_method, liveness_challenge, liveness_decision, liveness_signature)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     session.userId,
@@ -310,9 +391,19 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     longitude,
     withinGeofence ? 1 : 0,
     idempotency_key ?? null,
-    promptValue,
     reauthMethod,
+    challengeAction,
+    livenessDecision,
+    livenessSignature ? JSON.stringify(livenessSignature) : null,
   ).run();
+
+  // Write canonical frame to R2 (only when verification produced one and decision isn't skipped/manual_review)
+  if (canonicalFrame && livenessDecision && livenessDecision !== 'skipped' && livenessDecision !== 'manual_review') {
+    const r2Key = `photos/clock/${id}.jpg`;
+    await c.env.STORAGE.put(r2Key, canonicalFrame, { httpMetadata: { contentType: 'image/jpeg' } });
+    await c.env.DB.prepare('UPDATE clock_records SET photo_url = ? WHERE id = ?')
+      .bind(`/api/photos/clock/${id}`, id).run();
+  }
 
   // Consume the prompt — single-use enforced by KV.delete after a successful insert.
   if (promptId) {
@@ -343,7 +434,6 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
 
   // Late-clock alert: fires for clock_in past the configured late threshold (Ghana time = UTC+0).
   if (type === 'clock_in') {
-    const settings = await getAppSettings(c.env);
     const thresholdMin = hhmmToMinutes(settings.late_threshold_time);
     const now = new Date();
     const minOfDay = now.getUTCHours() * 60 + now.getUTCMinutes();
@@ -357,7 +447,7 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     'SELECT name, staff_id, current_streak, longest_streak FROM users WHERE id = ?'
   ).bind(session.userId).first<{ name: string; staff_id: string; current_streak: number; longest_streak: number }>();
 
-  devLog(c.env, `[CLOCK] ${user?.name} (${user?.staff_id}) — ${type} at ${new Date().toISOString()}`);
+  devLog(c.env, `[CLOCK] ${user?.name} (${user?.staff_id}) — ${type} liveness=${livenessDecision ?? 'none'} reauth=${reauthMethod ?? 'none'}`);
 
   return success(c, {
     id,
@@ -369,6 +459,7 @@ clockRoutes.post('/', zValidator('json', clockSchema), async (c) => {
     distance_meters: Math.round(distance),
     streak: user?.current_streak ?? 0,
     longest_streak: user?.longest_streak ?? 0,
+    liveness_decision: livenessDecision,
   });
 });
 
