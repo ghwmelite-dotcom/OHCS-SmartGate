@@ -5,7 +5,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 execute smartgate-db --local --file=src/db/schema.sql",
-    "db:seed": "wrangler d1 execute smartgate-db --local --file=src/db/seed.sql"
+    "db:seed": "wrangler d1 execute smartgate-db --local --file=src/db/seed.sql",
+    "test": "node ../../node_modules/vitest/vitest.mjs run --passWithNoTests",
+    "test:watch": "node ../../node_modules/vitest/vitest.mjs"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",
@@ -15,7 +17,9 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250410.0",
+    "@vitest/coverage-v8": "^4.1.5",
     "typescript": "^5.8.0",
+    "vitest": "^4.1.5",
     "wrangler": "^4.10.0"
   }
 }
