@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, useLayoutEffect, Fragment } from 'react';
+import { LivenessEvidenceCard } from './LivenessEvidenceCard';
 import { useQuery } from '@tanstack/react-query';
 import { api, resolvePhotoUrl, type Directorate } from '@/lib/api';
 import { cn, formatTime, formatDate } from '@/lib/utils';
@@ -35,6 +36,8 @@ interface AttendanceRecord {
   clock_in_reauth_method: 'webauthn' | 'pin' | null;
   clock_out_prompt: string | null;
   clock_out_reauth_method: 'webauthn' | 'pin' | null;
+  liveness_decision: 'pass' | 'fail' | 'manual_review' | 'skipped' | null;
+  liveness_signature: string | null;
   is_late: number;
   is_early_departure: number;
   current_streak: number;
@@ -56,6 +59,7 @@ export function AttendanceTab() {
   const [pdfExporting, setPdfExporting] = useState(false);
   const [search, setSearch] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const currentUser = useAuthStore(s => s.user);
   const canEditSettings = currentUser?.role === 'superadmin';
@@ -349,7 +353,7 @@ export function AttendanceTab() {
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Clock In</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Clock Out</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Status</th>
-                  <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Prompt</th>
+                  <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Liveness</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Verified</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Streak</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Photo</th>
@@ -357,76 +361,99 @@ export function AttendanceTab() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredRecords.map(r => (
-                  <tr key={r.user_id} className="hover:bg-background-warm/50 transition-colors">
-                    <td className="px-5 py-3">
-                        <button onClick={() => setMonthlyUser({ id: r.user_id, name: r.name })}
-                          className="text-[15px] font-semibold text-primary hover:underline text-left">
-                          {r.name}
-                        </button>
-                      </td>
-                    <td className="px-5 py-3 text-[14px] font-mono text-muted">{r.staff_id ?? '—'}</td>
-                    <td className="px-5 py-3">
-                      {r.directorate_abbr ? (
-                        <span className="inline-flex items-center h-6 px-2 text-[10px] font-bold bg-primary/8 text-primary rounded-lg">
-                          {r.directorate_abbr}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-5 py-3">
-                      {r.clock_in_time ? (
-                        <span className={cn('text-[14px] font-medium', r.is_late ? 'text-danger' : 'text-success')}>
-                          {formatTime(r.clock_in_time)}
-                        </span>
-                      ) : (
-                        <span className="text-[14px] text-muted-foreground italic">Absent</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('text-[14px]', r.is_early_departure ? 'text-warning font-medium' : 'text-foreground')}>
-                          {r.clock_out_time ? formatTime(r.clock_out_time) : '—'}
-                        </span>
-                        {r.is_early_departure ? (
-                          <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-bold rounded-md bg-warning/10 text-warning">
-                            Early
+                  <Fragment key={r.user_id}>
+                    <tr className="hover:bg-background-warm/50 transition-colors">
+                      <td className="px-5 py-3">
+                          <button onClick={() => setMonthlyUser({ id: r.user_id, name: r.name })}
+                            className="text-[15px] font-semibold text-primary hover:underline text-left">
+                            {r.name}
+                          </button>
+                        </td>
+                      <td className="px-5 py-3 text-[14px] font-mono text-muted">{r.staff_id ?? '—'}</td>
+                      <td className="px-5 py-3">
+                        {r.directorate_abbr ? (
+                          <span className="inline-flex items-center h-6 px-2 text-[10px] font-bold bg-primary/8 text-primary rounded-lg">
+                            {r.directorate_abbr}
                           </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3">
-                      {!r.clock_in_time ? (
-                        <span className="inline-flex items-center h-6 px-2.5 text-[10px] font-bold rounded-full bg-danger/10 text-danger">Absent</span>
-                      ) : r.is_late ? (
-                        <span className="inline-flex items-center h-6 px-2.5 text-[10px] font-bold rounded-full bg-warning/10 text-warning">Late</span>
-                      ) : (
-                        <span className="inline-flex items-center h-6 px-2.5 text-[10px] font-bold rounded-full bg-success/10 text-success">On Time</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-[13px] font-mono">
-                      {r.clock_in_prompt ?? <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-5 py-3">
-                      {r.clock_in_reauth_method === 'webauthn' && (
-                        <span className="inline-flex items-center gap-1 text-[12px] font-medium text-success">🔒 Bio</span>
-                      )}
-                      {r.clock_in_reauth_method === 'pin' && (
-                        <span className="inline-flex items-center gap-1 text-[12px] font-medium text-warning">🔢 PIN</span>
-                      )}
-                      {!r.clock_in_reauth_method && <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-5 py-3">
-                      {r.current_streak > 0 ? (
-                        <span className="text-[13px] font-medium text-accent-warm">{r.current_streak}d</span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-5 py-3">
-                      {r.clock_in_photo ? (
-                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-border">
-                          <img src={resolvePhotoUrl(r.clock_in_photo)!} alt="" className="w-full h-full object-cover" />
+                        ) : '—'}
+                      </td>
+                      <td className="px-5 py-3">
+                        {r.clock_in_time ? (
+                          <span className={cn('text-[14px] font-medium', r.is_late ? 'text-danger' : 'text-success')}>
+                            {formatTime(r.clock_in_time)}
+                          </span>
+                        ) : (
+                          <span className="text-[14px] text-muted-foreground italic">Absent</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={cn('text-[14px]', r.is_early_departure ? 'text-warning font-medium' : 'text-foreground')}>
+                            {r.clock_out_time ? formatTime(r.clock_out_time) : '—'}
+                          </span>
+                          {r.is_early_departure ? (
+                            <span className="inline-flex items-center h-5 px-1.5 text-[10px] font-bold rounded-md bg-warning/10 text-warning">
+                              Early
+                            </span>
+                          ) : null}
                         </div>
-                      ) : '—'}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-5 py-3">
+                        {!r.clock_in_time ? (
+                          <span className="inline-flex items-center h-6 px-2.5 text-[10px] font-bold rounded-full bg-danger/10 text-danger">Absent</span>
+                        ) : r.is_late ? (
+                          <span className="inline-flex items-center h-6 px-2.5 text-[10px] font-bold rounded-full bg-warning/10 text-warning">Late</span>
+                        ) : (
+                          <span className="inline-flex items-center h-6 px-2.5 text-[10px] font-bold rounded-full bg-success/10 text-success">On Time</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        {r.liveness_signature ? (
+                          <button
+                            onClick={() => setExpandedRow(expandedRow === r.user_id ? null : r.user_id)}
+                            className="flex items-center gap-1.5 group"
+                            aria-expanded={expandedRow === r.user_id}
+                            aria-label={`${expandedRow === r.user_id ? 'Hide' : 'Show'} liveness evidence for ${r.name}`}
+                          >
+                            <LivenessPill decision={r.liveness_decision} />
+                            <span className="text-[10px] text-muted group-hover:text-foreground transition-colors">
+                              {expandedRow === r.user_id ? '▲' : '▼'}
+                            </span>
+                          </button>
+                        ) : (
+                          <LivenessPill decision={r.liveness_decision} />
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        {r.clock_in_reauth_method === 'webauthn' && (
+                          <span className="inline-flex items-center gap-1 text-[12px] font-medium text-success">🔒 Bio</span>
+                        )}
+                        {r.clock_in_reauth_method === 'pin' && (
+                          <span className="inline-flex items-center gap-1 text-[12px] font-medium text-warning">🔢 PIN</span>
+                        )}
+                        {!r.clock_in_reauth_method && <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-5 py-3">
+                        {r.current_streak > 0 ? (
+                          <span className="text-[13px] font-medium text-accent-warm">{r.current_streak}d</span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-5 py-3">
+                        {r.clock_in_photo ? (
+                          <div className="w-8 h-8 rounded-lg overflow-hidden border border-border">
+                            <img src={resolvePhotoUrl(r.clock_in_photo)!} alt="" className="w-full h-full object-cover" />
+                          </div>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                    {expandedRow === r.user_id && r.liveness_signature && (
+                      <tr className="bg-zinc-50/60">
+                        <td colSpan={10} className="px-5 py-3">
+                          <LivenessEvidenceCard signature={JSON.parse(r.liveness_signature)} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -435,6 +462,16 @@ export function AttendanceTab() {
       </div>
     </div>
   );
+}
+
+function LivenessPill({ decision }: { decision: string | null }) {
+  const cls =
+    decision === 'pass' ? 'bg-emerald-100 text-emerald-800'
+    : decision === 'fail' ? 'bg-red-100 text-red-800'
+    : decision === 'manual_review' ? 'bg-amber-100 text-amber-800'
+    : 'bg-zinc-100 text-zinc-600';
+  const label = decision ?? '—';
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{label}</span>;
 }
 
 function MonthlyReportModal({ userId, userName, onClose }: { userId: string; userName: string; onClose: () => void }) {
