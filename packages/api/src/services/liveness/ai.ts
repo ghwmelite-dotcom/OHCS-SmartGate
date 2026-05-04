@@ -15,7 +15,7 @@ export async function analyzeFrame(ai: Ai, frame: ArrayBuffer): Promise<FrameAna
       image: Array.from(new Uint8Array(frame)),
     } as never) as InsightfaceResponse;
   } catch {
-    return { landmarks: null, sharpness: 0 };
+    return { landmarks: null, sharpness: 0, error: 'ai_failure' };
   }
 
   const faces = raw.faces ?? [];

@@ -15,6 +15,7 @@ export interface FaceLandmarks {
 export interface FrameAnalysis {
   landmarks: FaceLandmarks | null;   // null if no face was detected in the frame
   sharpness: number;                 // Laplacian variance proxy (higher = sharper)
+  error?: 'ai_failure';              // set when the AI call itself threw (distinguishes from no-face-detected)
 }
 
 export interface LivenessSignature {
