@@ -61,6 +61,7 @@ export function ClockPage() {
   const showFirstLoginPrompt = user ? !user.pin_acknowledged : false;
 
   const [phase, setPhase] = useState<Phase>('idle');
+  const [submittingForLong, setSubmittingForLong] = useState(false);
   const [clockType, setClockType] = useState<'clock_in' | 'clock_out'>('clock_in');
   const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
@@ -140,11 +141,38 @@ export function ClockPage() {
       return res;
     },
     onSuccess: async (res: ApiOrQueueResult<ClockResult>) => {
+      const ts = 'queued' in res ? new Date().toISOString() : res.data.timestamp;
+      // Optimistically update the Today card immediately so it reflects the
+      // new clock-in/out state without waiting for the refetch to land. The
+      // shape mirrors what /clock/my-status returns through `api.get`.
+      queryClient.setQueryData<{ data: ClockStatus | null; error: unknown } | undefined>(
+        ['clock-status'],
+        (old) => {
+          const prev: ClockStatus = old?.data ?? {
+            clocked_in: false,
+            clocked_out: false,
+            clock_in_time: null,
+            clock_out_time: null,
+            streak: status?.streak ?? 0,
+            longest_streak: status?.longest_streak ?? 0,
+          };
+          const next: ClockStatus = clockType === 'clock_in'
+            ? {
+                ...prev,
+                clocked_in: true,
+                clock_in_time: ts,
+                streak: 'queued' in res ? prev.streak : res.data.streak,
+                longest_streak: 'queued' in res ? prev.longest_streak : res.data.longest_streak,
+              }
+            : { ...prev, clocked_out: true, clock_out_time: ts };
+          return { data: next, error: null };
+        },
+      );
       if ('queued' in res) {
         setResult({
           id: res.id,
           type: clockType,
-          timestamp: new Date().toISOString(),
+          timestamp: ts,
           user_name: user?.name ?? '',
           staff_id: '',
           within_geofence: true,
@@ -157,6 +185,8 @@ export function ClockPage() {
       }
       setResult(res.data);
       setPhase('success');
+      // Confirm against the server in the background — the optimistic write
+      // above already makes the UI feel instant.
       queryClient.invalidateQueries({ queryKey: ['clock-status'] });
     },
     onError: (err) => {
@@ -174,6 +204,18 @@ export function ClockPage() {
     navigator.serviceWorker?.addEventListener('message', onMessage);
     return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
   }, [queryClient]);
+
+  // Surface a "first-time call may take a moment" hint after 3s in the
+  // submitting phase. The backing Workers AI call has cold-start latency that
+  // is invisible to staff otherwise.
+  useEffect(() => {
+    if (phase !== 'submitting') {
+      setSubmittingForLong(false);
+      return;
+    }
+    const t = setTimeout(() => setSubmittingForLong(true), 3000);
+    return () => clearTimeout(t);
+  }, [phase]);
 
   // If we land in the photo phase with no prompt (offline / fetch failed),
   // skip liveness and proceed directly to re-auth.
@@ -602,6 +644,11 @@ export function ClockPage() {
                 ⏳ Clocking {clockType === 'clock_in' ? 'in' : 'out'}…
               </p>
               <p className="text-[12px] text-muted mt-1">Securing your record 🔐</p>
+              {submittingForLong && (
+                <p className="text-[11px] text-muted mt-2 max-w-[260px] mx-auto">
+                  First check of the day can take a few seconds — hold tight.
+                </p>
+              )}
             </div>
           )}
 
@@ -619,7 +666,9 @@ export function ClockPage() {
                 <p className="text-[16px] text-foreground font-medium mt-1">
                   {result.user_name} &middot; {formatTime(result.timestamp)}
                 </p>
-                <p className="text-[13px] text-muted mt-0.5">🪪 Staff ID: {result.staff_id}</p>
+                {result.staff_id && (
+                  <p className="text-[13px] text-muted mt-0.5">🪪 Staff ID: {result.staff_id}</p>
+                )}
               </div>
               {result.streak > 1 && (
                 <div className="flex items-center justify-center gap-2 px-4 py-2 bg-accent/10 rounded-full">

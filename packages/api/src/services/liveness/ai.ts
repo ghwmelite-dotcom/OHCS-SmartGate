@@ -8,12 +8,34 @@ interface InsightfaceResponse {
   }>;
 }
 
+// Per-frame Workers AI budget. Workers AI cold-starts for `buffalo_s` can run
+// 3-8s; three parallel calls tipping past the Worker's 30s wall clock was
+// surfacing as opaque 5xx errors at the client. Capping each call lets the
+// orchestrator degrade to `ai_failure` (which collapses to a `skipped`
+// decision when all three fail) instead of hanging the whole request.
+const AI_TIMEOUT_MS = 7000;
+
+async function raceWithTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`ai_timeout_${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 export async function analyzeFrame(ai: Ai, frame: ArrayBuffer): Promise<FrameAnalysis> {
   let raw: InsightfaceResponse;
   try {
-    raw = await ai.run('@cf/insightface/buffalo_s' as never, {
-      image: Array.from(new Uint8Array(frame)),
-    } as never) as InsightfaceResponse;
+    raw = await raceWithTimeout(
+      ai.run('@cf/insightface/buffalo_s' as never, {
+        image: Array.from(new Uint8Array(frame)),
+      } as never) as Promise<InsightfaceResponse>,
+      AI_TIMEOUT_MS,
+    );
   } catch {
     return { landmarks: null, sharpness: 0, error: 'ai_failure' };
   }
