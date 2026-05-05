@@ -46,11 +46,12 @@ const OHCS_POLYGONS: readonly (readonly LatLng[])[] = [
 // metres. Tight cap: GPS error directly translates to false-positive risk.
 const MAX_GPS_ACCURACY_METERS = 30;
 
-// Tight wall buffer to absorb 1-3m GPS edge jitter for staff genuinely
-// inside the building. Keep small — a typical road kerb sits 8-15m from
-// a building wall, so anything above ~7m starts re-opening the
-// across-the-street false positive we already closed.
-const WALL_BUFFER_METERS = 5;
+// Wall buffer to absorb mobile GPS jitter for staff genuinely inside the
+// building. Field testing showed a 5m buffer was rejecting users standing
+// inside (~5-10m typical fix error indoors), so bumped to 8m. Anything
+// noticeably larger starts re-opening the across-the-street false positive,
+// since the nearest road kerb is ~10-15m from the building footprint.
+const WALL_BUFFER_METERS = 8;
 
 // Ray-casting: cast a horizontal ray east from the point and count crossings.
 function pointInPolygon(lat: number, lng: number, poly: readonly LatLng[]): boolean {

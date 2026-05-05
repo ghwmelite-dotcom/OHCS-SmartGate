@@ -72,7 +72,8 @@ function distanceToPolygonMetersOne(lat: number, lng: number, poly: readonly Lat
 }
 
 export const MAX_GPS_ACCURACY_METERS = 30;
-export const WALL_BUFFER_METERS = 5;
+// Mirror of server WALL_BUFFER_METERS — keep in sync.
+export const WALL_BUFFER_METERS = 8;
 
 export function withinGeofence(lat: number, lng: number): boolean {
   for (const poly of OHCS_POLYGONS) {

@@ -10,8 +10,12 @@ export async function createMediaPipeRunner(): Promise<MediaPipeRunner> {
   // Dynamic import keeps the ~2MB WASM out of the initial bundle.
   const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
 
+  // Pin the WASM CDN URL to the version we ship in package.json so the
+  // browser cache actually hits across releases (the `@latest` alias would
+  // bust on every upstream publish, forcing a fresh ~2MB download every
+  // time).
   const filesetResolver = await FilesetResolver.forVisionTasks(
-    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm',
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm',
   );
 
   const landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {

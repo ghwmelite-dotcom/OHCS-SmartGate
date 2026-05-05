@@ -30,6 +30,23 @@ export function LivenessCapture(props: Props) {
     let cancelled = false;
     let runner: MediaPipeRunner | null = null;
     let stream: MediaStream | null = null;
+    let captureStarted = false;
+    // If MediaPipe doesn't load + register a baseline within this window,
+    // start capturing anyway. The server-side insightface verification still
+    // produces a motion decision from the 3 frames, so guided detection is
+    // a UX nicety, not a hard requirement. Without this fallback, slow
+    // networks (~9MB MediaPipe assets) leave users staring at "Hold steady"
+    // indefinitely.
+    const BLIND_CAPTURE_FALLBACK_MS = 4000;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function startCaptureOnce() {
+      if (captureStarted || cancelled) return;
+      captureStarted = true;
+      if (fallbackTimer !== null) clearTimeout(fallbackTimer);
+      setUiState('challenge-active');
+      void runCapture();
+    }
 
     (async () => {
       try {
@@ -43,15 +60,28 @@ export function LivenessCapture(props: Props) {
         }
         setUiState('looking-for-face');
 
-        runner = await createMediaPipeRunner();
+        // Arm fallback BEFORE awaiting MediaPipe so a slow CDN download
+        // can't block capture indefinitely.
+        fallbackTimer = setTimeout(() => {
+          if (!captureStarted) startCaptureOnce();
+        }, BLIND_CAPTURE_FALLBACK_MS);
+
+        try {
+          runner = await createMediaPipeRunner();
+        } catch (mpErr) {
+          // MediaPipe failed to load (CDN/WebGL issue). Capture still works
+          // because the server does its own face analysis on the 3 frames.
+          console.warn('[liveness] MediaPipe init failed, falling back to blind capture:', mpErr);
+          startCaptureOnce();
+          return;
+        }
         if (cancelled) return;
 
         runner.start(videoRef.current!, (snap) => {
           if (completedRef.current) return;
           if (!baselineRef.current) {
             baselineRef.current = snap;
-            setUiState('challenge-active');
-            void runCapture();
+            startCaptureOnce();
             return;
           }
           if (detectClientChallenge(props.challenge, baselineRef.current, snap)) {
@@ -77,6 +107,7 @@ export function LivenessCapture(props: Props) {
 
     return () => {
       cancelled = true;
+      if (fallbackTimer !== null) clearTimeout(fallbackTimer);
       runner?.stop();
       stream?.getTracks().forEach((t) => t.stop());
     };
