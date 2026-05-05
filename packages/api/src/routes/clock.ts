@@ -289,20 +289,30 @@ clockRoutes.post('/', async (c) => {
   let livenessSignature: LivenessSignature | null = null;
   let livenessDecision: LivenessSignature['decision'] | null = null;
   let canonicalFrame: ArrayBuffer | null = null;
+  // When true, defer verifyLivenessBurst to a waitUntil background task so the
+  // user-visible response doesn't pay Workers AI cold-start latency. Only
+  // safe in shadow mode — enforce mode must gate the response on the result.
+  let deferLivenessVerification = false;
 
   if (frames && challengeAction) {
-    const verification = await verifyLivenessBurst({
-      ai: c.env.AI,
-      frames,
-      challenge: challengeAction,
-      modelVersion: settings.clockin_liveness_model_version,
-    });
-    livenessSignature = verification.signature;
-    livenessDecision = verification.decision;
-    canonicalFrame = verification.canonicalFrame;
+    if (enforceLiveness) {
+      const verification = await verifyLivenessBurst({
+        ai: c.env.AI,
+        frames,
+        challenge: challengeAction,
+        modelVersion: settings.clockin_liveness_model_version,
+      });
+      livenessSignature = verification.signature;
+      livenessDecision = verification.decision;
+      canonicalFrame = verification.canonicalFrame;
 
-    if (enforceLiveness && verification.decision === 'fail') {
-      return error(c, 'LIVENESS_FAILED', 'Liveness check failed. Please try again or submit for HR review.', 401);
+      if (verification.decision === 'fail') {
+        return error(c, 'LIVENESS_FAILED', 'Liveness check failed. Please try again or submit for HR review.', 401);
+      }
+    } else {
+      // Shadow mode: insert with NULL liveness fields, run verification +
+      // R2 write in the background after the response goes out.
+      deferLivenessVerification = true;
     }
   } else if (enforceLiveness) {
     livenessDecision = 'manual_review';
@@ -403,6 +413,44 @@ clockRoutes.post('/', async (c) => {
     await c.env.STORAGE.put(r2Key, canonicalFrame, { httpMetadata: { contentType: 'image/jpeg' } });
     await c.env.DB.prepare('UPDATE clock_records SET photo_url = ? WHERE id = ?')
       .bind(`/api/photos/clock/${id}`, id).run();
+  }
+
+  // Shadow-mode: kick off liveness verification in the background. The row was
+  // already inserted with NULL liveness fields; this closure UPDATEs them once
+  // the (slow) AI work finishes. Saves ~3-7s of user-visible latency per
+  // clock-in by not blocking the response on Workers AI cold-start.
+  if (deferLivenessVerification && frames && challengeAction) {
+    const challenge = challengeAction;
+    const capturedFrames = frames;
+    const modelVersion = settings.clockin_liveness_model_version;
+    c.executionCtx.waitUntil((async () => {
+      try {
+        const verification = await verifyLivenessBurst({
+          ai: c.env.AI,
+          frames: capturedFrames,
+          challenge,
+          modelVersion,
+        });
+        await c.env.DB.prepare(
+          'UPDATE clock_records SET liveness_decision = ?, liveness_signature = ? WHERE id = ?'
+        ).bind(
+          verification.decision,
+          JSON.stringify(verification.signature),
+          id,
+        ).run();
+        if (verification.decision !== 'skipped' && verification.decision !== 'manual_review') {
+          const r2Key = `photos/clock/${id}.jpg`;
+          await c.env.STORAGE.put(r2Key, verification.canonicalFrame, {
+            httpMetadata: { contentType: 'image/jpeg' },
+          });
+          await c.env.DB.prepare('UPDATE clock_records SET photo_url = ? WHERE id = ?')
+            .bind(`/api/photos/clock/${id}`, id).run();
+        }
+        devLog(c.env, `[CLOCK_LIVENESS_BG] ${id} decision=${verification.decision} ms=${verification.signature.ms_total}`);
+      } catch (e) {
+        devLog(c.env, `[CLOCK_LIVENESS_BG] ${id} background verification threw: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    })());
   }
 
   // Consume the prompt — single-use enforced by KV.delete after a successful insert.
