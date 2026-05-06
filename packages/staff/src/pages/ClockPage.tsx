@@ -268,9 +268,10 @@ export function ClockPage() {
         setPhase('error');
         return;
       }
-      if (!withinGeofence(pos.lat, pos.lng)) {
+      if (!withinGeofence(pos.lat, pos.lng, pos.accuracy)) {
         const distance = Math.round(distanceToPolygonMeters(pos.lat, pos.lng));
-        setErrorMsg(`You are ${distance}m outside the OHCS building. You must be at the building to clock ${type === 'clock_in' ? 'in' : 'out'}.`);
+        const accStr = pos.accuracy > 0 ? ` (GPS accuracy ±${Math.round(pos.accuracy)}m)` : '';
+        setErrorMsg(`You are ${distance}m outside the OHCS building${accStr}. You must be at the building to clock ${type === 'clock_in' ? 'in' : 'out'}.`);
         setPhase('error');
         return;
       }

@@ -350,12 +350,20 @@ clockRoutes.post('/', async (c) => {
     );
   }
 
-  // Check geofence — inside any OHCS polygon, or within the small wall buffer.
+  // Check geofence — inside any OHCS polygon, within the static wall buffer,
+  // or within an accuracy-aware buffer that absorbs indoor GPS jitter
+  // (5-15m typical on mobile inside concrete buildings). The static
+  // WALL_BUFFER_METERS handles clean fixes; the accuracy-aware portion
+  // accepts noisier fixes proportional to the device's reported uncertainty.
+  // Capped by MAX_GPS_ACCURACY_METERS so a spoofed accuracy can't open the
+  // door arbitrarily wide.
   const inside = insideAnyPolygon(latitude, longitude);
   const distance = inside ? 0 : distanceToNearestPolygonMeters(latitude, longitude);
   const acc = accuracy && accuracy > 0 ? accuracy : 0;
-  const withinGeofence = inside || distance <= WALL_BUFFER_METERS;
-  devLog(c.env, `[CLOCK_GEO] inside=${inside} dist=${Math.round(distance)}m acc=${Math.round(acc)}m -> ${withinGeofence ? 'IN' : 'OUT'}`);
+  const accuracyBuffer = acc > 0 ? acc * 0.5 : 0;
+  const effectiveBuffer = WALL_BUFFER_METERS + accuracyBuffer;
+  const withinGeofence = inside || distance <= effectiveBuffer;
+  devLog(c.env, `[CLOCK_GEO] inside=${inside} dist=${Math.round(distance)}m acc=${Math.round(acc)}m buffer=${Math.round(effectiveBuffer)}m -> ${withinGeofence ? 'IN' : 'OUT'}`);
 
   if (!withinGeofence) {
     const accStr = acc > 0 ? ` (GPS accuracy ±${Math.round(acc)}m)` : '';

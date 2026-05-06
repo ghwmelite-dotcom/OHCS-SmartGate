@@ -75,11 +75,19 @@ export const MAX_GPS_ACCURACY_METERS = 30;
 // Mirror of server WALL_BUFFER_METERS — keep in sync.
 export const WALL_BUFFER_METERS = 8;
 
-export function withinGeofence(lat: number, lng: number): boolean {
+// Same accuracy-aware buffer as the server: a fix's tolerance grows with the
+// device's reported uncertainty so indoor GPS jitter (5-15m on mobile inside
+// concrete buildings) doesn't reject staff who are genuinely inside.
+export function effectiveBufferMeters(accuracy: number | undefined): number {
+  const acc = accuracy && accuracy > 0 ? accuracy : 0;
+  return WALL_BUFFER_METERS + acc * 0.5;
+}
+
+export function withinGeofence(lat: number, lng: number, accuracy?: number): boolean {
   for (const poly of OHCS_POLYGONS) {
     if (pointInPolygon(lat, lng, poly)) return true;
   }
-  return distanceToPolygonMeters(lat, lng) <= WALL_BUFFER_METERS;
+  return distanceToPolygonMeters(lat, lng) <= effectiveBufferMeters(accuracy);
 }
 
 export function distanceToPolygonMeters(lat: number, lng: number): number {

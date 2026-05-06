@@ -1,4 +1,4 @@
-const CACHE_NAME = 'staff-clock-v4';
+const CACHE_NAME = 'staff-clock-v5';
 const OFFLINE_URL = '/offline.html';
 const QUEUE_DB = 'ohcs-queue';
 const QUEUE_DB_VERSION = 1;
