@@ -190,6 +190,16 @@ export function ClockPage() {
       queryClient.invalidateQueries({ queryKey: ['clock-status'] });
     },
     onError: (err) => {
+      // If the server demands re-auth (enforce mode) or rejected the
+      // attempted re-auth, open the PIN modal so the user can complete the
+      // flow without seeing a raw error. Other errors fall through to the
+      // generic error screen.
+      const code = (err as { code?: string }).code;
+      if (code === 'REAUTH_REQUIRED' || code === 'REAUTH_FAILED') {
+        setPhase('reauth');
+        setReauthModalOpen(true);
+        return;
+      }
       setErrorMsg(err instanceof Error ? err.message : 'Failed to clock');
       setPhase('error');
     },
@@ -320,10 +330,13 @@ export function ClockPage() {
     }, SETTLE_MS);
   }
 
-  // Attempt WebAuthn re-auth; on failure or no platform authenticator,
-  // open the PIN fallback modal. LivenessCapture has already been completed by
-  // this point — the biometric prompt fires AFTER capture so the same person
-  // who performed the liveness action is the one approving the submission.
+  // Attempt WebAuthn re-auth; on ANY failure (including iOS Safari quirks
+  // around empty allowCredentials and "string did not match the expected
+  // pattern" SyntaxErrors) submit directly without an assertion. The server
+  // gates per its enforce mode: in shadow mode the submission succeeds, in
+  // enforce mode it returns REAUTH_REQUIRED which clockMutation.onError
+  // catches and opens the PIN modal. This keeps the happy path for staff
+  // with no registered passkey from ever surfacing a raw biometric error.
   async function tryReauthAndSubmit() {
     if (!location) return;
     setPhase('reauth');
@@ -342,17 +355,12 @@ export function ClockPage() {
         submitClock({ promptId: prompt.promptId, webauthnAssertion: assertion });
         return;
       } catch (e) {
-        console.warn('[clock] webauthn failed/cancelled, falling through to PIN:', e);
+        console.warn('[clock] webauthn failed/cancelled, submitting without:', e);
+        // Fall through to direct submit.
       }
     }
 
-    // No prompt OR WebAuthn rejected → PIN modal (or, under soft-rollout
-    // with no prompt, just submit legacy).
-    if (!prompt) {
-      submitClock();
-      return;
-    }
-    setReauthModalOpen(true);
+    submitClock(prompt ? { promptId: prompt.promptId } : undefined);
   }
 
   function submitClock(

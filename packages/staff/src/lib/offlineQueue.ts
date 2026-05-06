@@ -95,9 +95,12 @@ export async function apiOrQueue<T>(
 
   if (!res.ok) {
     // Server responded with an HTTP error — NOT a network failure.
-    // Propagate so the caller's onError can surface the real message.
-    const errBody = await res.json().catch(() => ({})) as { error?: { message?: string } };
-    throw new Error(errBody?.error?.message ?? `Request failed (${res.status})`);
+    // Propagate the error code alongside the message so callers can branch
+    // on it (e.g. open a PIN modal on REAUTH_REQUIRED).
+    const errBody = await res.json().catch(() => ({})) as { error?: { code?: string; message?: string } };
+    const err = new Error(errBody?.error?.message ?? `Request failed (${res.status})`) as Error & { code?: string };
+    err.code = errBody?.error?.code;
+    throw err;
   }
 
   const parsed = await res.json() as { data: T };
