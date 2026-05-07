@@ -189,18 +189,36 @@ export function ClockPage() {
       // above already makes the UI feel instant.
       queryClient.invalidateQueries({ queryKey: ['clock-status'] });
     },
-    onError: (err) => {
-      // If the server demands re-auth (enforce mode) or rejected the
-      // attempted re-auth, open the PIN modal so the user can complete the
-      // flow without seeing a raw error. Other errors fall through to the
-      // generic error screen.
+    onError: (err, variables) => {
       const code = (err as { code?: string }).code;
+      const msg = err instanceof Error ? err.message : String(err);
+      // Always log the full error so it's visible in Safari Web Inspector
+      // when reproducing on a connected device.
+      console.error('[clock] mutation error', { msg, code, stack: err instanceof Error ? err.stack : null, variables });
+
       if (code === 'REAUTH_REQUIRED' || code === 'REAUTH_FAILED') {
         setPhase('reauth');
         setReauthModalOpen(true);
         return;
       }
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to clock');
+      // iOS Safari occasionally throws "The string did not match the
+      // expected pattern" from inside its multipart upload pipeline when
+      // FormData carries Blobs. The server in shadow mode accepts a
+      // burst-less submission, so retry once without the burst before
+      // giving up. Guard with a flag so we don't loop.
+      if (
+        /did not match the expected pattern/i.test(msg)
+        && (variables.livenessBurst || variables.webauthnAssertion)
+      ) {
+        console.warn('[clock] iOS Safari pattern error — retrying without burst/assertion');
+        clockMutation.mutate({
+          ...variables,
+          livenessBurst: undefined,
+          webauthnAssertion: undefined,
+        });
+        return;
+      }
+      setErrorMsg(msg || 'Failed to clock');
       setPhase('error');
     },
   });
@@ -701,10 +719,27 @@ export function ClockPage() {
               <p className="text-[16px] font-bold text-danger" style={{ fontFamily: "'Playfair Display', serif" }}>
                 ⚠️ {errorMsg}
               </p>
-              <button onClick={resetState}
-                className="h-10 px-6 text-[14px] font-medium text-foreground border border-border rounded-xl hover:bg-background transition-all">
-                🔄 Try Again
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
+                <button onClick={resetState}
+                  className="h-10 px-6 text-[14px] font-medium text-foreground border border-border rounded-xl hover:bg-background transition-all">
+                  🔄 Try Again
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const cs = await caches.keys();
+                      await Promise.all(cs.map((n) => caches.delete(n)));
+                      const regs = await navigator.serviceWorker?.getRegistrations?.() ?? [];
+                      await Promise.all(regs.map((r) => r.unregister()));
+                    } finally {
+                      window.location.reload();
+                    }
+                  }}
+                  className="h-10 px-6 text-[14px] font-medium text-muted hover:text-foreground transition-all"
+                >
+                  Reset app & reload
+                </button>
+              </div>
             </div>
           )}
         </div>

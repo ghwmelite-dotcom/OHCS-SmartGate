@@ -1,4 +1,4 @@
-const CACHE_NAME = 'staff-clock-v6';
+const CACHE_NAME = 'staff-clock-v7';
 const OFFLINE_URL = '/offline.html';
 const QUEUE_DB = 'ohcs-queue';
 const QUEUE_DB_VERSION = 1;
@@ -21,16 +21,27 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.pathname.startsWith('/api') || url.hostname !== self.location.hostname) return;
+
+  // Never SW-cache the navigation root or the SW itself — every deploy
+  // changes the bundle hashes referenced from index.html, and a stale
+  // index.html would point at non-existent JS files. Always go to network
+  // for these so new deploys propagate the moment the user reopens the PWA.
+  const isShell = e.request.mode === 'navigate'
+    || url.pathname === '/'
+    || url.pathname === '/index.html'
+    || url.pathname === '/sw.js';
+
   e.respondWith(
     fetch(e.request).then(r => {
-      if (r.ok) { const c = r.clone(); caches.open(CACHE_NAME).then(cache => cache.put(e.request, c)); }
+      if (r.ok && !isShell) {
+        const c = r.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(e.request, c));
+      }
       return r;
     }).catch(async () => {
       const cached = await caches.match(e.request);
       if (cached) return cached;
       if (e.request.mode === 'navigate') {
-        const shell = await caches.match('/');
-        if (shell) return shell;
         const offline = await caches.match(OFFLINE_URL);
         if (offline) return offline;
       }
