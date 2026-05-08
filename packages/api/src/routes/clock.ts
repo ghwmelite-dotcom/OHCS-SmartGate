@@ -12,33 +12,20 @@ import type { LivenessChallenge, LivenessSignature } from '../services/liveness/
 
 export const clockRoutes = new Hono<{ Bindings: Env; Variables: { session: SessionData } }>();
 
-// OHCS building footprints (Office of The Head of the Civil Service, Accra).
-// Corners traced from Google Maps satellite view. Each polygon is one
-// building; a clock-in is allowed if the user is inside ANY of them. Order
-// within a polygon is the perimeter walk; winding direction is irrelevant
-// for the ray-casting test.
+// OHCS building footprint (Office of The Head of the Civil Service, Accra).
+// Single precision-retraced polygon as of 2026-05-08, replacing the earlier
+// 3-building approximation. Order within the polygon is the perimeter walk;
+// winding direction is irrelevant for the ray-casting test. The
+// accuracy-aware buffer in the geofence check (WALL_BUFFER_METERS +
+// accuracy * 0.5) absorbs typical mobile GPS jitter so the small footprint
+// still admits staff genuinely inside the building.
 type LatLng = readonly [number, number];
 const OHCS_POLYGONS: readonly (readonly LatLng[])[] = [
-  // Building 1 (~15m x 28m)
   [
-    [5.552642231596962, -0.19766533600075373],
-    [5.55270572629351, -0.19769244846778028],
-    [5.552780332553211, -0.19748033328457254],
-    [5.552717631548359, -0.19743727230753033],
-  ],
-  // Building 2 (~16m x 27m)
-  [
-    [5.552807794779271, -0.1974000832414714],
-    [5.552879226292339, -0.19716723499524333],
-    [5.552814144247448, -0.19715288133622927],
-    [5.55273636325754, -0.19739370383746516],
-  ],
-  // Building 3 (~33m x 74m — the main block)
-  [
-    [5.552437120671583, -0.19774728898780675],
-    [5.552518292169384, -0.19777004828570785],
-    [5.552737266386741, -0.19712520151184268],
-    [5.5526598703364645, -0.1970986489976247],
+    [5.552548291041157,  -0.19745481365835615],
+    [5.5525690558400616, -0.1974680899154652 ],
+    [5.552594539910443,  -0.19741119167071233],
+    [5.552572831257968,  -0.19740739845439553],
   ],
 ];
 
