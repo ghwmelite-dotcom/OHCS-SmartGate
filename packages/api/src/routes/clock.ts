@@ -564,6 +564,37 @@ function requireAdmin(c: { get: (key: 'session') => SessionData }) {
   return role === 'superadmin' || role === 'admin';
 }
 
+function requireSuperadmin(c: { get: (key: 'session') => SessionData }) {
+  return c.get('session').role === 'superadmin';
+}
+
+// TEMPORARY TEST TOOLING — remove after pilot stabilises.
+// Lets a superadmin clear a user's clock_records for a given date so a test
+// cycle can be re-run without DB shell access. Audit: every invocation is
+// logged via [CLOCK_TEST_CLEAR] with the calling superadmin, target user,
+// date, and rows-deleted count.
+clockRoutes.post('/admin/clear-test-records', async (c) => {
+  if (!requireSuperadmin(c)) return error(c, 'FORBIDDEN', 'Superadmin access required', 403);
+
+  const body = await c.req.json().catch(() => null) as { user_id?: unknown; date?: unknown } | null;
+  if (!body || typeof body.user_id !== 'string' || body.user_id.length < 1 || body.user_id.length > 100) {
+    return error(c, 'BAD_PAYLOAD', 'user_id is required', 400);
+  }
+  const date = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date)
+    ? body.date
+    : new Date().toISOString().slice(0, 10);
+
+  const result = await c.env.DB.prepare(
+    'DELETE FROM clock_records WHERE user_id = ? AND DATE(timestamp) = ?'
+  ).bind(body.user_id, date).run();
+
+  const deleted = result.meta?.changes ?? 0;
+  const session = c.get('session');
+  devLog(c.env, `[CLOCK_TEST_CLEAR] superadmin=${session.userId} cleared=${deleted} target_user=${body.user_id} date=${date}`);
+
+  return success(c, { deleted, user_id: body.user_id, date });
+});
+
 // Admin: aggregate liveness metrics for the last `days` (default 7, max 30).
 clockRoutes.get('/admin/liveness-metrics', async (c) => {
   if (!requireAdmin(c)) return error(c, 'FORBIDDEN', 'Admin access required', 403);

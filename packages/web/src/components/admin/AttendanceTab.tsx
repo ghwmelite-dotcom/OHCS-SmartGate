@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useLayoutEffect, Fragment } from 'react';
 import { LivenessEvidenceCard } from './LivenessEvidenceCard';
 import { LivenessMetricsWidget } from './LivenessMetricsWidget';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, resolvePhotoUrl, type Directorate } from '@/lib/api';
 import { cn, formatTime, formatDate } from '@/lib/utils';
 import { downloadCSV } from '@/lib/csv';
@@ -11,7 +11,7 @@ import { SettingsModal, type AppSettings } from './SettingsModal';
 import {
   Users, Clock, AlertTriangle, TrendingUp, CheckCircle2,
   XCircle, Download, Calendar, Building2, FileText, Loader2, Search, X, Settings as SettingsIcon,
-  LogOut,
+  LogOut, Trash2,
 } from 'lucide-react';
 
 interface TodayOverview {
@@ -64,6 +64,39 @@ export function AttendanceTab() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const currentUser = useAuthStore(s => s.user);
   const canEditSettings = currentUser?.role === 'superadmin';
+  const isSuperadmin = currentUser?.role === 'superadmin';
+  const queryClient = useQueryClient();
+  const [clearingUserId, setClearingUserId] = useState<string | null>(null);
+
+  // TEMPORARY TEST TOOLING — paired with POST /api/clock/admin/clear-test-records.
+  // Remove once the test cycle stabilises.
+  const clearMutation = useMutation({
+    mutationFn: async (input: { user_id: string; date: string; name: string }) => {
+      const res = await api.post<{ deleted: number; user_id: string; date: string }>(
+        '/clock/admin/clear-test-records',
+        { user_id: input.user_id, date: input.date },
+      );
+      return { ...res.data, name: input.name } as { deleted: number; user_id: string; date: string; name: string };
+    },
+    onSuccess: (data) => {
+      setClearingUserId(null);
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      // eslint-disable-next-line no-alert
+      alert(`Cleared ${data?.deleted ?? 0} record(s) for ${data?.name} on ${data?.date}.`);
+    },
+    onError: (err) => {
+      setClearingUserId(null);
+      // eslint-disable-next-line no-alert
+      alert(`Failed to clear records: ${err instanceof Error ? err.message : 'unknown error'}`);
+    },
+  });
+
+  function handleClear(userId: string, name: string) {
+    // eslint-disable-next-line no-alert
+    if (!window.confirm(`Clear ALL clock records for ${name} on ${selectedDate}?\n\nThis cannot be undone. Use only for test cycles.`)) return;
+    setClearingUserId(userId);
+    clearMutation.mutate({ user_id: userId, date: selectedDate, name });
+  }
 
   // Ctrl/Cmd+K focuses the search
   useEffect(() => {
@@ -164,6 +197,20 @@ export function AttendanceTab() {
 
   return (
     <div className="space-y-6">
+      {/* TEMPORARY TEST TOOLING — banner only renders for superadmin. Remove
+          when the pilot test cycle stabilises. */}
+      {isSuperadmin && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+          <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+          <div className="text-[13px] leading-snug">
+            <span className="inline-flex items-center h-5 px-2 mr-2 text-[10px] font-bold rounded-md bg-amber-600 text-white tracking-wider align-middle">
+              TEST TOOL
+            </span>
+            A trash-can button appears in each attendance row (last column) so you can wipe a user&apos;s clock_in/clock_out for the selected date and re-run a clock-in test cycle. Action is logged. Visible to superadmin only and intended to be removed once the pilot stabilises.
+          </div>
+        </div>
+      )}
+
       <LivenessMetricsWidget />
 
       {/* Staff / NSS / All segment pill */}
@@ -360,6 +407,9 @@ export function AttendanceTab() {
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Verified</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Streak</th>
                   <th className="text-left px-5 py-3 text-[12px] font-semibold text-muted uppercase tracking-wide">Photo</th>
+                  {isSuperadmin && (
+                    <th className="text-left px-5 py-3 text-[12px] font-semibold text-amber-700 uppercase tracking-wide">Test</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -448,10 +498,32 @@ export function AttendanceTab() {
                           </div>
                         ) : '—'}
                       </td>
+                      {isSuperadmin && (
+                        <td className="px-5 py-3">
+                          {(r.clock_in_time || r.clock_out_time) ? (
+                            <button
+                              onClick={() => handleClear(r.user_id, r.name)}
+                              disabled={clearingUserId === r.user_id}
+                              className="inline-flex items-center gap-1 h-7 px-2 text-[11px] font-medium rounded-md border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 hover:border-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              title={`Clear all clock records for ${r.name} on ${selectedDate}`}
+                              aria-label={`Clear clock records for ${r.name}`}
+                            >
+                              {clearingUserId === r.user_id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                              Clear
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground text-[12px]">—</span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                     {expandedRow === r.user_id && r.liveness_signature && (
                       <tr className="bg-zinc-50/60">
-                        <td colSpan={10} className="px-5 py-3">
+                        <td colSpan={isSuperadmin ? 11 : 10} className="px-5 py-3">
                           <LivenessEvidenceCard signature={JSON.parse(r.liveness_signature)} />
                         </td>
                       </tr>
